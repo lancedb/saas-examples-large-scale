@@ -19,7 +19,8 @@ function App() {
   const [artworks, setArtworks] = useState<Artwork[]>([])
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
-  const [numImgs, setNumImgs] = useState<number>(20)
+  //const [numImgs, setNumImgs] = useState<number>(20)
+  const numImgs = 20
   const [totalImgs, setTotalImgs] = useState<number | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 

@@ -6,20 +6,12 @@ export default defineConfig({
   plugins: [
     react(),
     nodePolyfills({
-      include: ['@lancedb/lancedb'],
       globals: {
         Buffer: true,
         global: true,
         process: true,
       },
+      protocolImports: true
     })
   ],
-  build: {
-    rollupOptions: {
-      external: ['@lancedb/lancedb']
-    }
-  },
-  optimizeDeps: {
-    exclude: ['@lancedb/lancedb']
-  }
 })

@@ -44,8 +44,7 @@ MODEL_CONFIGS = {
     image=image,
     gpu="A10",
     cpu=8,
-    scaledown_window=1200,
-    keep_warm=1
+    scaledown_window=1200
 )
 class ClipSearcher:
 
@@ -187,7 +186,7 @@ class ClipSearcher:
             print(f"Image search error: {str(e)}")
             return {"error": f"Image search failed: {str(e)}"}
 
-@app.function(keep_warm=1)
+@app.function()
 @modal.fastapi_endpoint(method="POST")
 async def search(request: dict):
     try:
