@@ -44,7 +44,8 @@ MODEL_CONFIGS = {
     image=image,
     gpu="A10",
     cpu=8,
-    scaledown_window=120,
+    scaledown_window=1200,
+    keep_warm=1
 )
 class ClipSearcher:
 
@@ -104,10 +105,26 @@ class ClipSearcher:
             
             # Remove the img column from results
             if 'img' in results.columns:
-                results = results.drop(columns=['img'])
+                results = results.drop(columns=['img', 'vector'])
+            
+            # Convert numpy/pandas specific types to Python native types
+            # This helps ensure JSON serialization works correctly
+            result_list = []
+            for record in results.to_dict(orient='records'):
+                clean_record = {}
+                for key, value in record.items():
+                    # Convert numpy/pandas types to native Python types
+                    if hasattr(value, 'item'):
+                        clean_record[key] = value.item()  # Convert numpy scalars to Python scalars
+                    elif str(type(value)).startswith("<class 'numpy.") or str(type(value)).startswith("<class 'pandas."):
+                        clean_record[key] = float(value) if isinstance(value, (float, int)) else str(value)
+                    else:
+                        clean_record[key] = value
+                result_list.append(clean_record)
                 
-            return results.to_dict(orient='records')
+            return result_list
         except Exception as e:
+            print(f"Text search error: {str(e)}")
             return {"error": f"Text search failed: {str(e)}"}
 
     @modal.method()
@@ -118,18 +135,62 @@ class ClipSearcher:
             
             # Remove the img column from results
             if 'img' in results.columns:
-                results = results.drop(columns=['img'])
+                results = results.drop(columns=['img', 'vector'])
+            
+            # Convert numpy/pandas specific types to Python native types
+            # This helps ensure JSON serialization works correctly
+            result_list = []
+            for record in results.to_dict(orient='records'):
+                clean_record = {}
+                for key, value in record.items():
+                    # Convert numpy/pandas types to native Python types
+                    if hasattr(value, 'item'):
+                        clean_record[key] = value.item()  # Convert numpy scalars to Python scalars
+                    elif str(type(value)).startswith("<class 'numpy.") or str(type(value)).startswith("<class 'pandas."):
+                        clean_record[key] = float(value) if isinstance(value, (float, int)) else str(value)
+                    else:
+                        clean_record[key] = value
+                result_list.append(clean_record)
                 
-            return results.to_dict(orient='records')
+            return result_list
         except Exception as e:
+            print(f"Image search error: {str(e)}")
+            return {"error": f"Image search failed: {str(e)}"}
+
+    @modal.method()
+    def search_random(self, model_type: str = "siglip", limit: int = 5):
+        try:
+            # random list of dim 512
+            feats = np.random.rand(512).tolist() # Remove harcoding
+            results = self.tables[model_type].search(feats).limit(limit).to_pandas()
+            
+            # Remove the img and vector column from results
+            results = results.drop(columns=['img', 'vector'])
+            
+            # Convert numpy/pandas specific types to Python native types
+            # This helps ensure JSON serialization works correctly
+            result_list = []
+            for record in results.to_dict(orient='records'):
+                clean_record = {}
+                for key, value in record.items():
+                    # Convert numpy/pandas types to native Python types
+                    if hasattr(value, 'item'):
+                        clean_record[key] = value.item()  # Convert numpy scalars to Python scalars
+                    elif str(type(value)).startswith("<class 'numpy.") or str(type(value)).startswith("<class 'pandas."):
+                        clean_record[key] = float(value) if isinstance(value, (float, int)) else str(value)
+                    else:
+                        clean_record[key] = value
+                result_list.append(clean_record)
+                
+            return result_list
+        except Exception as e:
+            print(f"Image search error: {str(e)}")
             return {"error": f"Image search failed: {str(e)}"}
 
 @app.function(keep_warm=1)
 @modal.fastapi_endpoint(method="POST")
 async def search(request: dict):
     try:
-
-        
         searcher = ClipSearcher()
         
         query_text = request.get("query")
@@ -137,35 +198,96 @@ async def search(request: dict):
         model = request.get("model", "siglip")
         limit = request.get("limit", 5)
         
+        random = False
         if not query_text and not image_data:
-            return {"status": "error", "message": "No query provided"}
+            random = True
         
         if model not in MODEL_CONFIGS:
             return {"status": "error", "message": f"Invalid model type. Use one of: {', '.join(MODEL_CONFIGS.keys())}"}
         
-        if query_text:
-            results = searcher.search_by_text.remote(query_text, model, limit)
-        else:
-            # Handle base64 encoded images
-            if isinstance(image_data, str):
-                try:
-                    # Remove potential data URL prefix
-                    if "base64," in image_data:
-                        image_data = image_data.split("base64,")[1]
-                    image_bytes = base64.b64decode(image_data)
-                except Exception as e:
-                    return {"status": "error", "message": f"Failed to decode base64 image: {str(e)}"}
+        # Define response with a properly structured dictionary
+        response_data = {"status": "success", "data": []}
+        
+        try:
+            if random:
+                # Get results from remote call
+                results = searcher.search_random.remote(model, limit)
+                print(f"Text search results type: {type(results)}")
+
+            elif query_text:
+                # Get results from remote call
+                results = searcher.search_by_text.remote(query_text, model, limit)
+            
             else:
-                return {"status": "error", "message": "Image must be provided as base64 encoded string"}
+                # Handle base64 encoded images
+                if isinstance(image_data, str):
+                    try:
+                        # Remove potential data URL prefix
+                        if "base64," in image_data:
+                            image_data = image_data.split("base64,")[1]
+                        image_bytes = base64.b64decode(image_data)
+                    except Exception as e:
+                        return {"status": "error", "message": f"Failed to decode base64 image: {str(e)}"}
+                else:
+                    return {"status": "error", "message": "Image must be provided as base64 encoded string"}
                 
-            results = searcher.search_by_image.remote(image_bytes, model, limit)
+                # Get results from remote call
+                results = searcher.search_by_image.remote(image_bytes, model, limit)
             
-        if isinstance(results, dict) and "error" in results:
-            return {"status": "error", "message": results["error"]}
+            # Debug logs
+            print(f"Text search results type: {type(results)}")
             
-        return {"status": "success", "data": results}
+            # Handle different return types
+            if isinstance(results, dict) and "error" in results:
+                return {"status": "error", "message": results["error"]}
+            
+            # Ensure results is serializable JSON
+            if isinstance(results, list):
+                # Already a list of dicts
+                response_data["data"] = results
+            else:
+                # Convert to list of basic Python types
+                import json
+                try:
+                    # Force serialization to ensure compatibility
+                    serialized = json.dumps(results)
+                    response_data["data"] = json.loads(serialized)
+                except TypeError:
+                    # If direct serialization fails, convert element by element
+                    clean_results = []
+                    for item in results:
+                        if hasattr(item, "to_dict"):
+                            clean_results.append(item.to_dict())
+                        else:
+                            # Convert to string as fallback
+                            clean_results.append(str(item))
+                    response_data["data"] = clean_results
+            
+            # Return prepared response with stringified data if necessary
+            return response_data
+            
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"Search operation error: {error_trace}")
+            
+            # Make sure we only return simple strings/dicts
+            error_msg = str(e)
+            return {"status": "error", "message": error_msg}
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
         print(f"Error in search endpoint: {error_details}")
         return {"status": "error", "message": f"Search failed: {str(e)}"}
+
+@app.function()
+@modal.fastapi_endpoint(method="POST")
+def get_total_rows():
+    try:
+        searcher = ClipSearcher()
+        table = searcher.tables["siglip"]
+        total_rows = table.count_rows()
+        return {"total_rows": total_rows}
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to get total rows: {str(e)}"}
+    
