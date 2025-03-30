@@ -4,23 +4,22 @@ import { tableInfoService } from './services/getTableInfo'
 import './App.css'
 
 interface Artwork {
-  object_id: number
   title: string
   artist: string
   date: string
-  medium: string
-  department: string
-  culture: string
-  img_url: string
+  image: string
+  ds_name: string
+  _rowid: number
 }
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [artworks, setArtworks] = useState<Artwork[]>([])
+  const [searchMessage, setSearchMessage] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
-  //const [numImgs, setNumImgs] = useState<number>(20)
-  const numImgs = 20
+  const [numImgs, setNumImgs] = useState<number>(20)
+  const [modelType, setModelType] = useState<'clip' | 'siglip'>('clip')
   const [totalImgs, setTotalImgs] = useState<number | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
@@ -39,7 +38,7 @@ function App() {
 
   const fetchRandomArtworks = async () => {
     try {
-      const response = await embeddingService.searchRandom("clip", numImgs)
+      const response = await embeddingService.searchRandom(modelType, numImgs)
       return response
     } catch (error) {
       console.error('Error fetching random artworks:', error)
@@ -60,21 +59,28 @@ function App() {
 
   const handleSearch = async () => {
     setLoading(true)
+    const startTime = performance.now()
     try {
       let results
       if (selectedImage) {
         console.log("searching by image")
-        results = await embeddingService.searchByImage(selectedImage)
+        results = await embeddingService.searchByImage(selectedImage, modelType, numImgs)
       } else if (searchQuery.trim()) {
         console.log("searching text")
-        results = await embeddingService.searchByText(searchQuery)
+        results = await embeddingService.searchByText(searchQuery, modelType, numImgs)
       } else {
         console.log("searching random")
         results = await fetchRandomArtworks()
       }
+      const endTime = performance.now()
+      const searchTime = ((endTime - startTime) / 1000).toFixed(2)
+      setSearchMessage(`Search completed in ${searchTime} seconds`)
+      setTimeout(() => setSearchMessage(null), 3000) // Message disappears after 3 seconds
       setArtworks(results)
     } catch (error) {
       console.error('Error searching artworks:', error)
+      setSearchMessage('Error occurred during search')
+      setTimeout(() => setSearchMessage(null), 3000)
     } finally {
       setLoading(false)
     }
@@ -87,6 +93,7 @@ function App() {
   return (
     <div className="container">
       {totalImgs && <div className="total-count">{totalImgs} artworks indexed</div>}
+      {searchMessage && <div className="search-message">{searchMessage}</div>}
       <header>
         <div className="search-container">
           {previewImage && (
@@ -134,6 +141,26 @@ function App() {
               <polyline points="21 15 16 10 5 21"></polyline>
             </svg>
           </label>
+          
+          {/* Add model type selector and number of images control */}
+          <div className="search-controls">
+            <select 
+              value={modelType} 
+              onChange={(e) => setModelType(e.target.value as 'clip' | 'siglip')}
+              className="model-select"
+            >
+              <option value="clip">CLIP</option>
+              <option value="siglip">SigLIP</option>
+            </select>
+            <input
+              type="number"
+              value={numImgs}
+              onChange={(e) => setNumImgs(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+              min="1"
+              max="100"
+              className="num-images-input"
+            />
+          </div>
         </div>
       </header>
 
@@ -141,17 +168,18 @@ function App() {
         {artworks.length === 0 ? (
           <p>No artworks to display. Try searching for something!</p>
         ) : (
-          artworks.map((artwork) => (
-            <div key={artwork.object_id} className="artwork-card">
+          artworks.map((artwork, index) => (
+            <div key={`${artwork.ds_name}-${artwork.title}-${index}`} className="artwork-card">
               <img 
-                src={artwork.img_url} 
+                src={`data:image/jpeg;base64,${artwork.image}`}
                 alt={artwork.title} 
               />
               <div className="artwork-info">
-                <h3>{artwork.title}</h3>
-                <p>{artwork.artist}</p>
-                <p>{artwork.date}</p>
-                <p>{artwork.department}</p>
+                <h3> Title: {artwork.title}</h3>
+                <p> Artist: {artwork.artist}</p>
+                <p> Date: {artwork.date}</p>
+                <p> Datset: {artwork.ds_name}</p>
+                <p> Row ID: {artwork._rowid}</p>
               </div>
             </div>
           ))

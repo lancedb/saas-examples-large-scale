@@ -38,6 +38,7 @@ class EmbeddingService {
       if (data.status === "error") {
         throw new Error(data.message)
       }
+      console.log("recieved data ", data.data)
       return data.data || []
     }
   private fileToBase64(file: File): Promise<string> {

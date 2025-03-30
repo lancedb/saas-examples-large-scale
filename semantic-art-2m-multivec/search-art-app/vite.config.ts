@@ -1,5 +1,5 @@
-import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 export default defineConfig({
@@ -14,4 +14,14 @@ export default defineConfig({
       protocolImports: true
     })
   ],
+
+  optimizeDeps: {
+    exclude: [
+      '@lancedb/lancedb' // Add this line
+      // You might technically exclude '@lancedb/lancedb-darwin-arm64'
+      // but excluding the main package is often cleaner if it
+      // handles platform specifics internally.
+    ]
+  }
 })
+
