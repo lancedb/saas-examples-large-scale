@@ -1,6 +1,8 @@
 import modal
 import logging
 import io
+import time
+import numpy as np
 
 
 # Configure logging
@@ -8,8 +10,10 @@ logging.basicConfig(level=logging.INFO)
 
 CACHE_DIR = "/data"
 MODEL_DIR = "/cache"
-BATCH_SIZE = 200000
-EMBEDDING_BATCH_SIZE = 8000 
+BATCH_SIZE = 200_000
+GATHER_BATCH_SIZE = 20000
+EMBEDDING_BATCH_SIZE = 8000
+INGEST_BATCH_SIZE = 10000
 
 volume = modal.Volume.from_name("marco-10M")
 model_volume = modal.Volume.from_name("hf-hub-cache")
@@ -27,28 +31,34 @@ image = (modal.Image.debian_slim(python_version="3.11")
             "protobuf==5.29.3",
             "sentencepiece",
             "open-clip-torch"
+         ).env(
+             
+             {
+                 "HF_DATASETS_IN_MEMORY_MAX_SIZE": "100000"
+             }
          ))
 
 @stub.cls(
     image=image,
     gpu="A100",
     timeout=86400,
-    memory=100000,
+    memory=120000,
     cpu=24,
     max_containers=10,
     volumes={
         CACHE_DIR: volume,
-        MODEL_DIR: model_volume}
+        MODEL_DIR: model_volume},
+ region="us-east"
 )
 class EmbeddingProcessor:
     def __init__(self):
         import os
-        from datasets import load_from_disk
+        from datasets import load_from_disk, disable_caching
         import open_clip
         import torch
         import lancedb
         from lancedb.pydantic import Vector, LanceModel
-
+        disable_caching()
         # Debug volume mounting
         logging.info(f"Checking directory contents in __enter__: {os.listdir(CACHE_DIR)}")
 
@@ -83,7 +93,7 @@ class EmbeddingProcessor:
         region="us-east-1"
         )
 
-        tbl_name = "test-test-test-10M-marco-clip-class-full"
+        tbl_name = "macro-10m-docs-bs20000"
         try:
             self.table = db.open_table(tbl_name)
         except Exception as e:
@@ -104,7 +114,10 @@ class EmbeddingProcessor:
         from PIL import Image
         from concurrent.futures import ThreadPoolExecutor
         from functools import partial
+        from PIL import Image
+        import torch.nn.functional as F
 
+        throughput_metrics = []
         # Unpack the batch arguments
         split_name = batch_args["split_name"]
         start_idx = batch_args["start_idx"]
@@ -130,83 +143,79 @@ class EmbeddingProcessor:
                 yield records[i:i + chunk_size]
 
         total_inserted = 0
+        
+        # Precompute normalization tensors
+        mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device='cuda').view(1, 3, 1, 1)
+        std = torch.tensor([0.26862954, 0.26130258, 0.27577711], device='cuda').view(1, 3, 1, 1)
 
         def process_single_record(record):
             try:
-                # Convert image bytes to PIL Image, resize to model's expected size
                 img_bytes = io.BytesIO(record["image"]["bytes"])
-                img_pil = Image.open(img_bytes).convert('RGB').resize((224, 224), Image.Resampling.LANCZOS)
-                img_array = np.array(img_pil)
+                img_pil = (Image.open(img_bytes)
+                          .convert('RGB')
+                          .resize((224, 224), Image.Resampling.BILINEAR))  # BILINEAR is faster than default
+                img_array = np.asarray(img_pil, dtype=np.float32) / 255.0 
                 
-                # Update record (avoid creating new objects)
                 record["image"] = record["image"]["bytes"]
                 record["split"] = split_name
-                
                 return img_array, record
             except Exception as e:
                 logging.error(f"Error processing record: {e}")
                 return None, None
 
-        # Process in embedding-friendly chunks
-        for embed_chunk in chunk_records(processed_records, EMBEDDING_BATCH_SIZE):
+        for gather_chunk in chunk_records(processed_records, GATHER_BATCH_SIZE):
             try:
                 t1 = time.time()
                 
-                # Process records in parallel
-                with ThreadPoolExecutor(max_workers=100) as executor:
-                    results = list(executor.map(process_single_record, embed_chunk))
+                with ThreadPoolExecutor(max_workers=min(100, len(gather_chunk))) as executor:
+                    results = list(executor.map(process_single_record, gather_chunk))
                 
-                # Separate successful results
-                images = []
-                valid_records = []
-                for img_array, record in results:
-                    if img_array is not None:
-                        images.append(img_array)
-                        valid_records.append(record)
-                
-                embed_chunk = valid_records  # Update chunk to only valid records
-                
-                if not images:
+                valid_results = [(img, rec) for img, rec in results if img is not None]
+                if not valid_results:
                     continue
-                
-                # Convert numpy arrays to batch tensor
-                image_batch = np.stack(images)  # [B, H, W, C]
-                image_batch = image_batch.transpose((0, 3, 1, 2))  # [B, C, H, W]
-                image_batch = torch.from_numpy(image_batch).float().cuda()  # Convert to float32
-                image_batch = image_batch / 255.0  # Normalize to [0,1] range
-                
-                # Apply ImageNet normalization
-                mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device='cuda').view(1, 3, 1, 1)
-                std = torch.tensor([0.26862954, 0.26130258, 0.27577711], device='cuda').view(1, 3, 1, 1)
-                image_batch = (image_batch - mean) / std
-                
-                # Apply preprocessing in batch
-                #image_batch = self.preprocess(image_batch)
                     
+                images, records = zip(*valid_results)
+                records = list(records)
+                
                 t2 = time.time()
-                logging.info(f"Gathering for embedding {len(embed_chunk)} records in {t2 - t1} seconds")
-                # Generate embeddings and add to records
-                t1 = time.time()
-                #image_batch = torch.cat(images).cuda()
-                with torch.no_grad(), torch.autocast("cuda"):
-                    embeddings = self.model.encode_image(image_batch)
-                    embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
-                    embeddings = embeddings.cpu().numpy()
+                logging.info(f"Gathering {len(records)} records in {t2 - t1} seconds")
 
-                # Add embeddings directly to embed_chunk records
-                for record, embedding in zip(embed_chunk, embeddings):
-                    record["vector"] = embedding
-                t2= time.time()
-                logging.info(f"Embedding {len(embed_chunk)} records in {t2 - t1} seconds")
-                # Insert in chunks
-                for insert_chunk in chunk_records(embed_chunk, EMBEDDING_BATCH_SIZE):
+                # Process embeddings in smaller batches
+                embedded_records = []
+                for embed_idx in range(0, len(records), EMBEDDING_BATCH_SIZE):
+                    batch_images = images[embed_idx:embed_idx + EMBEDDING_BATCH_SIZE]
+                    batch_records = records[embed_idx:embed_idx + EMBEDDING_BATCH_SIZE]
+                    
+                    t1 = time.time()
+                    image_batch = (torch.from_numpy(np.stack(batch_images))
+                                 .permute(0, 3, 1, 2)
+                                 .cuda())
+                    
+                    image_batch = (image_batch - mean) / std
+                    
+                    with torch.no_grad(), torch.autocast("cuda"):
+                        embeddings = self.model.encode_image(image_batch)
+                        embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
+                        embeddings = embeddings.cpu().numpy()
+
+                    # Add embeddings to records
+                    for record, embedding in zip(batch_records, embeddings):
+                        record["vector"] = embedding
+                        embedded_records.append(record)
+                    t2 = time.time()
+                    logging.info(f"Embedded batch of {len(batch_records)} records in {t2 - t1} seconds")
+
+                for insert_chunk in chunk_records(embedded_records, INGEST_BATCH_SIZE):
                     try:
                         t1 = time.time()
                         self.table.add(insert_chunk)
                         t2 = time.time()
                         chunk_size = len(insert_chunk)
+                        chunk_time = t2 - t1
+                        throughput = chunk_size / chunk_time
+                        throughput_metrics.append(throughput)
                         total_inserted += chunk_size
-                        logging.info(f"call table.add() on chunk of size {chunk_size} ({total_inserted}/{len(processed_records)}) in {t2 - t1} seconds")
+                        logging.info(f"call table.add() size {chunk_size} ({total_inserted}/{len(processed_records)}) in {chunk_time:.2f} seconds. throughput: {throughput:.2f}")
                     except Exception as e:
                         logging.warning(f"Insert failed, trying smaller batches: {str(e)}")
                         # Try smaller sub-chunks
@@ -222,7 +231,9 @@ class EmbeddingProcessor:
             except Exception as e:
                 logging.error(f"Error processing embedding chunk: {e}")
 
-        return total_inserted
+        # Return metrics only if we have data
+        avg_throughput = np.mean(throughput_metrics) if throughput_metrics else 0
+        return (total_inserted, avg_throughput)
 
 @stub.function(
     image=image,
@@ -255,26 +266,45 @@ def main():
 
     processor = EmbeddingProcessor()
     batch_args = []
-    for split in splits:
-        print(f"\nProcessing split: {split}")
-        batch_indices = get_batch_indices.remote(split)
+    # Hardcode
+    split_sizes = {
+        'in_domain': 3_930_000,      # 3.93M rows
+        'novel_document': 3_920_000,  # 3.92M rows
+        'novel_query': 981_000,       # 981k rows
+        'zero_shot': 981_000          # 981k rows
+    }
+    #for split in splits:
+    #    print(f"\nProcessing split: {split}")
+    #    batch_indices = get_batch_indices.remote(split)
+    
+    for split, total_size in split_sizes.items():
+        print(f"\nProcessing split: {split} with {total_size:,} records")
         batch_args.extend([
-                {"split_name": split, "start_idx": start, "end_idx": end} 
-                for split, start, end in batch_indices
-            ])
+            {"split_name": split, "start_idx": i, "end_idx": min(i + BATCH_SIZE, total_size)}
+            for i in range(0, total_size, BATCH_SIZE)
+        ])
     try:
+        t1 = time.time()
         results = processor.process_batch.map(batch_args, return_exceptions=True)
 
         split_total = 0
+        total_throughput = []
+        
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 print(f"Error in batch {i}: {result}")
-            elif result > 0:
-                split_total += result
-                print(f"Processed batch {i}, records: {result}, total: {split_total}")
+            elif isinstance(result, tuple) and len(result) == 2:
+                records, throughput = result
+                if records > 0:
+                    split_total += records
+                    total_throughput.append(throughput)
+                    print(f"Processed batch {i}, records: {records}, total: {split_total}, throughput: {throughput:.2f} records/sec")
 
         total_processed += split_total
-        print(f"Records ingested: {split_total}")
+        avg_throughput = np.mean(total_throughput) if total_throughput else 0
+        print(f"Records ingested: {split_total}, Average throughput: {avg_throughput:.2f} records/sec")
+        t2 = time.time()
+        print(f"Total time: {(t2 - t1)/60.0} min")
 
     except Exception as e:
         print(f"Error processing split : {e}")
