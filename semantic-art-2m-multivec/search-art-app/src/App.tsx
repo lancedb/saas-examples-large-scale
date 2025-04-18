@@ -12,39 +12,81 @@ interface Artwork {
   _rowid: number
 }
 
+const SEARCH_TYPES = [
+  { value: "clip_text_to_image", label: "CLIP: Text to Image Search" },
+  { value: "sigplip_text_to_image", label: "SigLIP: Text to Image Search" },
+  { value: "clip_image_to_image", label: "CLIP: Image to Image Search" },
+  { value: "sigplip_image_to_image", label: "SigLIP: Image to Image Search" },
+  { value: "clip_caption", label: "CLIP: Caption Search" },
+  { value: "sigplip_caption", label: "SigLIP: Caption Search" },
+  { value: "full_text", label: "Full-text Search (Title, Artist, Caption)" },
+  { value: "hybrid_clip", label: "CLIP: Hybrid Search" },
+  { value: "hybrid_siglip", label: "SigLIP: Hybrid Search" }
+];
+
+const TEXT_ONLY_SEARCH_TYPES = ['clip_text_to_image', 'sigplip_text_to_image', 'clip_caption', 'siglip_caption', 'hybrid_clip', 'hybrid_siglip', 'full_text'];
+const IMAGE_ONLY_SEARCH_TYPES = ['clip_image_to_image', 'sigplip_image_to_image'];
+
 function App() {
+  const [searchType, setSearchType] = useState<string>("clip_text_to_image")
   const [searchQuery, setSearchQuery] = useState('')
   const [artworks, setArtworks] = useState<Artwork[]>([])
   const [searchMessage, setSearchMessage] = useState<string | null>(null)
   const [selectedImage, setSelectedImage] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [numImgs, setNumImgs] = useState<number>(20)
-  const [modelType, setModelType] = useState<'clip' | 'siglip'>('clip')
+  // Update the model type state to include all search types
   const [totalImgs, setTotalImgs] = useState<number | null>(null)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchInitialArtworks = async () => {
-      console.log("searching random")
-      const results = await fetchRandomArtworks()
-      setArtworks(results)
-      console.log("random", results)
+      try {
+        const results = await fetchRandomArtworks()
+        if (results) {  // Add null check
+          setArtworks(results)
+        } else {
+          console.error("No results received from fetchRandomArtworks")
+          setSearchMessage("Error loading initial artworks")
+        }
+      } catch (error) {
+        console.error("Error in fetchInitialArtworks:", error)
+        setSearchMessage("Error loading initial artworks")
+      }
     }
-    tableInfoService.getTotalRows().then((total) => {
-      setTotalImgs(total)
-    })
+
+    const fetchTotalRows = async () => {
+      try {
+        const total = await tableInfoService.getTotalRows()
+        setTotalImgs(total)
+      } catch (error) {
+        console.error("Error fetching total rows:", error)
+      }
+    }
+
     fetchInitialArtworks()
+    fetchTotalRows()
   }, [])
 
   const fetchRandomArtworks = async () => {
     try {
-      const response = await embeddingService.searchRandom(modelType, numImgs)
+      console.log("Fetching random artworks with model:", searchType)
+      const response = await embeddingService.searchByText("random", "clip_text_to_image", numImgs)
       return response
     } catch (error) {
-      console.error('Error fetching random artworks:', error)
+      throw error  // Propagate error to caller
     }
   }
 
+  // Modify the loading state check
+  if (!artworks || artworks.length === 0) {
+    return (
+      <div className='container'>
+        <div className="spinner"></div>
+        {searchMessage && <div className="search-message">{searchMessage}</div>}
+      </div>
+    )
+  }
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -57,39 +99,85 @@ function App() {
     }
   }
 
-  const handleSearch = async () => {
-    setLoading(true)
-    const startTime = performance.now()
-    try {
-      let results
-      if (selectedImage) {
-        console.log("searching by image")
-        results = await embeddingService.searchByImage(selectedImage, modelType, numImgs)
-      } else if (searchQuery.trim()) {
-        console.log("searching text")
-        results = await embeddingService.searchByText(searchQuery, modelType, numImgs)
-      } else {
-        console.log("searching random")
-        results = await fetchRandomArtworks()
-      }
-      const endTime = performance.now()
-      const searchTime = ((endTime - startTime) / 1000).toFixed(2)
-      setSearchMessage(`Search completed in ${searchTime} seconds`)
-      setTimeout(() => setSearchMessage(null), 3000) // Message disappears after 3 seconds
-      setArtworks(results)
-    } catch (error) {
-      console.error('Error searching artworks:', error)
-      setSearchMessage('Error occurred during search')
-      setTimeout(() => setSearchMessage(null), 3000)
-    } finally {
-      setLoading(false)
+  const isSearchDisabled = () => {
+    // Disable if both text and image are provided
+    console.log("searchType ", searchType)
+    if (searchQuery.trim() && selectedImage) {
+      console.log("Both text and image provided")
+      return true;
     }
+    // Disable if image is selected but search type is text-only
+    if (selectedImage && TEXT_ONLY_SEARCH_TYPES.includes(searchType)) {
+      console.log("Image selected but search type is text-only")
+      return true;
+    }
+    // Disable if text is entered but search type is image-only
+    if (searchQuery.trim() && IMAGE_ONLY_SEARCH_TYPES.includes(searchType)) {
+      console.log("Text entered but search type is image-only")
+      return true;
+    }
+    // Disable if no input is provided (except for random search)
+    if (!searchQuery.trim() && !selectedImage) {
+
+      return false; // Allow random search
+    }
+    return false;
+  };
+
+  const handleSearch = async () => {
+    setLoading(true);
+    const startTime = performance.now();
+    console.log("search for type ", searchType )
+    try {
+      let results;
+      if (selectedImage && IMAGE_ONLY_SEARCH_TYPES.includes(searchType)) {
+        console.log("searching by image");
+        results = await embeddingService.searchByImage(selectedImage, searchType, numImgs);
+      } else if (searchQuery.trim() && TEXT_ONLY_SEARCH_TYPES.includes(searchType)) {
+        console.log("searching text");
+        results = await embeddingService.searchByText(searchQuery, searchType, numImgs);
+      } else {
+        console.log("searching random");
+        results = await embeddingService.searchRandom(searchType, numImgs);
+      }
+      const endTime = performance.now();
+      const searchTime = ((endTime - startTime) / 1000).toFixed(2);
+      setSearchMessage(`Search completed in ${searchTime} seconds`);
+      setTimeout(() => setSearchMessage(null), 3000);
+      setArtworks(results);
+    } catch (error) {
+      console.error('Error searching artworks:', error);
+      setSearchMessage('Error occurred during search');
+      setTimeout(() => setSearchMessage(null), 3000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+  // Show image upload only for image-to-image search types
+  {searchType.includes("image_to_image") && (
+    <input
+      type="file"
+      accept="image/*"
+      onChange={handleImageUpload}
+      id="image-upload"
+    />
+  )}
+
+
+  // Modify the loading state check
+  if (!artworks || artworks.length === 0) {
+    return (
+      <div className='container'>
+        <div className="spinner"></div>
+        {searchMessage && <div className="search-message">{searchMessage}</div>}
+      </div>
+    )
   }
 
-  // Use a spinner while loading the page if there are no artworks to display
-  if (artworks.length === 0) {
-    return <div className='container'><div className="spinner"></div></div>
-  }
+     
   return (
     <div className="container">
       {totalImgs && <div className="total-count">{totalImgs} artworks indexed</div>}
@@ -122,7 +210,11 @@ function App() {
               }
             }}
           />
-          <button onClick={handleSearch} disabled={loading}>
+          <button 
+            onClick={handleSearch} 
+            disabled={loading || isSearchDisabled()}
+            className={`search-button ${isSearchDisabled() ? 'disabled' : ''}`}
+          >
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
               <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
@@ -145,12 +237,15 @@ function App() {
           {/* Add model type selector and number of images control */}
           <div className="search-controls">
             <select 
-              value={modelType} 
-              onChange={(e) => setModelType(e.target.value as 'clip' | 'siglip')}
               className="model-select"
+              value={searchType}
+              onChange={(e) => setSearchType(e.target.value)}
             >
-              <option value="clip">CLIP</option>
-              <option value="siglip">SigLIP</option>
+              {SEARCH_TYPES.map(type => (
+                <option key={type.value} value={type.value}>
+                  {type.label}
+                </option>
+              ))}
             </select>
             <input
               type="number"

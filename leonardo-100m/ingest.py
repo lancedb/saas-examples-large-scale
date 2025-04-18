@@ -4,15 +4,16 @@ import io
 import requests
 from PIL import Image
 import numpy as np
+import aiohttp
+import asyncio
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 
 CACHE_DIR = "/data"
 ARTSY_DIR = "/artsy"
 MODEL_DIR = "/cache"
 BATCH_SIZE = 50000
-EMBEDDING_BATCH_SIZE = 5000  # Smaller batches for GPU memory
+EMBEDDING_BATCH_SIZE = 5000  # avoid GPU OOM
 
 HF_DATASET_NAME = "bigdata-pw/leonardo"
 MAX_IMG_DOWNLOAD_RETRIES = 1 # You can change this to a higher number, but it will take longer
@@ -42,16 +43,11 @@ image = (modal.Image.debian_slim(python_version="3.11")
        "HF_HOME": CACHE_DIR,
        })
 
-
-# Add near the top of the file with other imports
-
-# Add this constant near other constants
-# Add near the top with other constants
-SHARD_SIZE = 1_000_000  # 1M rows per shard
+SHARD_SIZE = 1_000_000 
 TOTAL_ROWS = 958_000_000
 NUM_SHARDS = TOTAL_ROWS // SHARD_SIZE + (1 if TOTAL_ROWS % SHARD_SIZE != 0 else 0)
 
-HF_TOKEN = "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"  # Replace with your actual token
+HF_TOKEN = "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" 
 
 
 
@@ -127,22 +123,15 @@ class EmbeddingProcessor:
         import pandas as pd
         from PIL import Image
         from concurrent.futures import ThreadPoolExecutor
-        from datasets import load_dataset, load_from_disk
-        from requests.adapters import HTTPAdapter
-        from urllib3.util import Retry
-        from PIL import UnidentifiedImageError
-        import aiohttp
-        import asyncio
+        from datasets import load_from_disk
 
         Image.MAX_IMAGE_PIXELS = None
         
-        # Unpack the batch arguments - now just need shard_idx
         shard_idx = batch_args["shard_idx"]
         shard_path = os.path.join(CACHE_DIR, "leonardo_shards", f"shard_{shard_idx:05d}")
 
         t1 = time.time()
         try:
-            # Load the specific shard
             dataset = load_from_disk(shard_path)
             processed_records = dataset.to_pandas().to_dict(orient='records')
             t2 = time.time()
@@ -168,16 +157,13 @@ class EmbeddingProcessor:
             retries = MAX_IMG_DOWNLOAD_RETRIES
             while retries > 0:
                 try:
-                    # Download image
                     response = requests.get(record['url'], timeout=30)
                     if response.status_code == 200:
                         content_type = response.headers.get('content-type', '')
                         if 'image' in content_type.lower():
-                            # Process image
                             img_bytes = io.BytesIO(response.content)
                             img_pil = Image.open(img_bytes).convert('RGB').resize((224, 224), Image.Resampling.LANCZOS)
                             
-                            # Prepare record and image array
                             img_array = np.asarray(img_pil)
                             resized_bytes = io.BytesIO()
                             img_pil.save(resized_bytes, format='JPEG', quality=95, optimize=True)
@@ -190,12 +176,10 @@ class EmbeddingProcessor:
                             
                             return img_array, rec
                     elif response.status_code in [404, 429]:
-                        # Log only the final failure
                         if retries == 1:
                             logging.info(f"Image not found or rate limited ({response.status_code}): {record['url']}")
                         return None, None
                 except Exception as e:
-                    # Log only the final failure
                     if retries == 1:
                         logging.warning(f"Error downloading {record['url']}: {str(e)}")
                 
@@ -204,16 +188,13 @@ class EmbeddingProcessor:
             logging.warning(f"Failed to download after retries: {record['url']}")
             return None, None
 
-        # Process in embedding-friendly chunks
         for embed_chunk in chunk_records(processed_records, EMBEDDING_BATCH_SIZE):
             try:
                 t1 = time.time()
                 
-                # Process records in parallel using ThreadPool
-                with ThreadPoolExecutor(max_workers=100) as executor:
+                with ThreadPoolExecutor(max_workers=100) as executor: #this is too high, but let it be becoz it works
                     results = list(executor.map(process_single_record, embed_chunk))
                 
-                # Separate successful results
                 images = []
                 valid_records = []
                 for img_array, record in results:
@@ -226,13 +207,11 @@ class EmbeddingProcessor:
                 if not images:
                     continue
                 
-                # Convert numpy arrays to batch tensor
-                image_batch = np.stack(images)  # [B, H, W, C]
-                image_batch = image_batch.transpose((0, 3, 1, 2))  # [B, C, H, W]
-                image_batch = torch.from_numpy(image_batch).float().cuda()  # Convert to float32
-                image_batch = image_batch / 255.0  # Normalize to [0,1] range
+                image_batch = np.stack(images)
+                image_batch = image_batch.transpose((0, 3, 1, 2))
+                image_batch = torch.from_numpy(image_batch).float().cuda()
+                image_batch = image_batch / 255.0 
                 
-                # Apply ImageNet normalization
                 mean = torch.tensor([0.48145466, 0.4578275, 0.40821073], device='cuda').view(1, 3, 1, 1)
                 std = torch.tensor([0.26862954, 0.26130258, 0.27577711], device='cuda').view(1, 3, 1, 1)
                 image_batch = (image_batch - mean) / std
@@ -242,9 +221,7 @@ class EmbeddingProcessor:
                     
                 t2 = time.time()
                 logging.info(f"Gathering for embedding {len(embed_chunk)} records in {t2 - t1} seconds")
-                # Generate embeddings and add to records
                 t1 = time.time()
-                #image_batch = torch.cat(images).cuda()
                 with torch.no_grad(), torch.autocast("cuda"):
                     embeddings_clip = self.model_clip.encode_image(image_batch)
                     embeddings_clip = embeddings_clip / embeddings_clip.norm(dim=-1, keepdim=True)
@@ -266,7 +243,6 @@ class EmbeddingProcessor:
 
                 t2= time.time()
                 logging.info(f"Embedding {len(embed_chunk)} records in {t2 - t1} seconds")
-                # Insert in chunks
                 for insert_chunk in chunk_records(embed_chunk, EMBEDDING_BATCH_SIZE):
                     try:
                         t1 = time.time()
@@ -277,7 +253,6 @@ class EmbeddingProcessor:
                         logging.info(f"call table.add() on chunk of size {chunk_size} ({total_inserted}/{len(processed_records)}) in {t2 - t1} seconds")
                     except Exception as e:
                         logging.warning(f"Insert failed, trying smaller batches: {str(e)}")
-                        # Try smaller sub-chunks
                         for sub_chunk in chunk_records(insert_chunk, len(insert_chunk)//3):
                             try:
                                 self.table.add(sub_chunk)
@@ -297,7 +272,7 @@ def main():
     total_processed = 0
     processor = EmbeddingProcessor()
     
-    start_shard = 25  # Start from shard 35
+    start_shard = 25 
     print(f"Starting processing from shard {start_shard} to {NUM_SHARDS} shards")
     
     try:
@@ -309,10 +284,8 @@ def main():
             
         print(f"\nScheduling {len(batch_args)} shards for parallel processing")
         
-        # Process all shards in parallel
         results = processor.process_batch.map(batch_args, return_exceptions=True)
         
-        # Track progress (adjusted for starting from shard 35)
         for i, result in enumerate(results, start=start_shard):
             if isinstance(result, Exception):
                 print(f"Error in shard {i}: {result}")
