@@ -10,12 +10,6 @@ logging.basicConfig(level=logging.INFO)
 
 CACHE_DIR = "/data"
 
-# Best perf with h100 - 11 mins
-#BATCH_SIZE = 100_000  # Main processing batch size
-#EMBEDDING_BATCH_SIZE = 100_000  # Batch size for embedding
-#CHUNK_SIZE = 512
-#NUM_CHUNK_CONTAINERS = 300
-#NUM_EMBEDDING_CONTAINERS = 50
 
 def get_secrets():
     LANCEDB_URI = os.environ.get("LANCEDB_URI")
@@ -39,12 +33,11 @@ app = modal.App("wikipedia-processor",
                 secrets=get_secrets())
 
 
-
-
-BATCH_SIZE = 25_000  # Main processing batch size
-EMBEDDING_BATCH_SIZE = 25_000  # Batch size for embedding
+# Best perf with h100 - 11 mins
+BATCH_SIZE = 100_000  # Main processing batch size
+EMBEDDING_BATCH_SIZE = 100_000  # Batch size for embedding
 CHUNK_SIZE = 512
-NUM_CHUNK_CONTAINERS = 600
+NUM_CHUNK_CONTAINERS = 300
 NUM_EMBEDDING_CONTAINERS = 50
 
 
@@ -105,7 +98,7 @@ class ChunkProcessor:
         return {"processed": processed, "chars": total_chars}
 
 @app.cls(
-    gpu="A10",
+    gpu="H100",
     timeout=86400,
     memory=64000,
     cpu=24,
