@@ -8,6 +8,7 @@ from config import (
     CHUNK_SIZE, NUM_CHUNK_CONTAINERS, NUM_EMBEDDING_CONTAINERS, DEFAULT_TABLE_NAME,
     MODEL_NAME, VECTOR_DIM, LANCEDB_REGION, DATASET_PATH
 )
+from lancedb_ops import get_or_create_table, add_batch_data
 
 logging.basicConfig(level=logging.INFO)
 
@@ -24,6 +25,7 @@ app = modal.App("wikipedia-processor",
     #region="us-east" # Using east-east further speeds up the ingestion rate but provisioning takes more time
 )
 class ChunkProcessor:
+
     def __init__(self, table_name: str):
         disable_caching()
         self.ds = load_from_disk(DATASET_PATH)["train"]
@@ -42,11 +44,11 @@ class ChunkProcessor:
             total_chars += len(text)
             for idx, i in enumerate(range(0, len(text), CHUNK_SIZE)):
                 chunks.append({
-                    "text": text[i:i + CHUNK_SIZE],
-                    "id": doc_id,
+                    "content": text[i:i + CHUNK_SIZE],
+                    "identifier": doc_id,
                     "url": url,
                     "title": title,
-                    "chunk_idx": idx
+                    "chunk_index": idx
                 })
         
         # Process in optimized embedding batches of EMBEDDING_BATCH_SIZE
@@ -65,49 +67,27 @@ class ChunkProcessor:
     #region="us-east", # Using east-east further speeds up the ingestion rate but provisioning takes more time
 )
 class WikipediaProcessor:
-    def __init__(self, table_name: str = None):
+
+    def __init__(self, table_name: str):
         from sentence_transformers import SentenceTransformer
-        import lancedb
-        from lancedb.pydantic import Vector, LanceModel
+        import torch
         
         self.model = SentenceTransformer(MODEL_NAME, device='cuda')
         self.model.eval()
-        
-        db = lancedb.connect(
-            uri=os.environ["LANCEDB_URI"],
-            api_key=os.environ["LANCEDB_API_KEY"],
-            region=LANCEDB_REGION
-        )
-        
-        table_name = table_name or DEFAULT_TABLE_NAME
-        try:
-            self.table = db.open_table(table_name)
-        except Exception:
-            class Schema(LanceModel):
-                vector: Vector(VECTOR_DIM)
-                identifier: int
-                chunk_index: int
-                content: str
-                url: str
-                title: str
-            self.table = db.create_table(table_name, schema=Schema)
+        self.table = get_or_create_table(table_name)
 
     @modal.method()
     def process_chunks(self, chunks: List[Dict]) -> int:
         import torch
-        import time
         
-        texts = [c["text"] for c in chunks]
+        texts = [c["content"] for c in chunks]
         
         # Generate embeddings in Batches of EMBEDDING_BATCH_SIZE
         with torch.no_grad():
-            embeddings = self.model.encode(texts, convert_to_tensor=True)
+            embeddings = self.model.encode(texts, convert_to_tensor=True, normalize_embeddings=True)
             embeddings = embeddings.cpu().numpy()
         
-        batch_data = [ {"vector": embedding} | chunk 
-                      for chunk, embedding in zip(chunks, embeddings) ]
-        self.table.add(batch_data)
-        return len(batch_data)
+        return add_batch_data(self.table, chunks, embeddings)
 
 @app.function(
     volumes={CACHE_DIR: volume},
@@ -140,6 +120,10 @@ def start(down_scale: float = 1.0, table_name: str = DEFAULT_TABLE_NAME):
     
     print(f"Processed {total_processed:,} chunks")
     print(f"Overall duration: {duration/60:.1f} minutes")
+
+    table = get_or_create_table(table_name)
+    table.create_index(metric="dot", vector_column_name="emb", index_type="IVF_PQ")
+    #table.create_fts_index(["content", "title"])
 
 @app.local_entrypoint()
 def main(down_scale: float = 1.0, table_name: str = DEFAULT_TABLE_NAME):
