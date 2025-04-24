@@ -6,7 +6,7 @@ from datasets import load_from_disk, disable_caching
 from config import (
     CACHE_DIR, volume, image, get_secrets, BATCH_SIZE, EMBEDDING_BATCH_SIZE,
     CHUNK_SIZE, NUM_CHUNK_CONTAINERS, NUM_EMBEDDING_CONTAINERS, DEFAULT_TABLE_NAME,
-    MODEL_NAME, VECTOR_DIM, LANCEDB_REGION
+    MODEL_NAME, VECTOR_DIM, LANCEDB_REGION, DATASET_PATH
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -26,7 +26,7 @@ app = modal.App("wikipedia-processor",
 class ChunkProcessor:
     def __init__(self, table_name: str):
         disable_caching()
-        self.ds = load_from_disk(f"{CACHE_DIR}/wikipedia")["train"]
+        self.ds = load_from_disk(DATASET_PATH)["train"]
         self.embedder = WikipediaProcessor(table_name)
 
     @modal.method()
@@ -43,12 +43,10 @@ class ChunkProcessor:
             for idx, i in enumerate(range(0, len(text), CHUNK_SIZE)):
                 chunks.append({
                     "text": text[i:i + CHUNK_SIZE],
-                    "metadata": {
-                        "id": doc_id,
-                        "url": url,
-                        "title": title,
-                        "chunk_idx": idx
-                    }
+                    "id": doc_id,
+                    "url": url,
+                    "title": title,
+                    "chunk_idx": idx
                 })
         
         # Process in optimized embedding batches of EMBEDDING_BATCH_SIZE
@@ -102,30 +100,13 @@ class WikipediaProcessor:
         texts = [c["text"] for c in chunks]
         
         # Generate embeddings in Batches of EMBEDDING_BATCH_SIZE
-        t1 = time.time()
         with torch.no_grad():
             embeddings = self.model.encode(texts, convert_to_tensor=True)
             embeddings = embeddings.cpu().numpy()
-        t2 = time.time()
-        print(f"Embedding took {t2-t1:.1f}s")
         
-        batch_data = [
-            {
-                "vector": embedding,
-                "identifier": chunk["metadata"]["id"],
-                "chunk_index": chunk["metadata"]["chunk_idx"],
-                "content": chunk["text"],
-                "url": chunk["metadata"]["url"],
-                "title": chunk["metadata"]["title"]
-            }
-            for chunk, embedding in zip(chunks, embeddings)
-        ]
-        
-        t1 = time.time()
+        batch_data = [ {"vector": embedding} | chunk 
+                      for chunk, embedding in zip(chunks, embeddings) ]
         self.table.add(batch_data)
-        t2 = time.time()
-        print(f"Insertion took {t2-t1:.1f}s")
-        
         return len(batch_data)
 
 @app.function(
@@ -137,7 +118,7 @@ class WikipediaProcessor:
 def start(down_scale: float = 1.0, table_name: str = DEFAULT_TABLE_NAME):
     disable_caching()
 
-    ds = load_from_disk(f"{CACHE_DIR}/wikipedia")
+    ds = load_from_disk(DATASET_PATH)
     total_size = len(ds["train"])
     sample_size = int(total_size * down_scale)
     

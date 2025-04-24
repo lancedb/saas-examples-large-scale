@@ -6,6 +6,9 @@ CACHE_DIR = "/data"
 VOLUME_NAME = "embedding-wikipedia-lancedb"
 volume = modal.Volume.from_name(VOLUME_NAME)
 
+# Dataset settings
+DATASET_PATH = f"{CACHE_DIR}/wikipedia"
+
 # Database settings
 LANCEDB_URI = os.environ.get("LANCEDB_URI")
 LANCEDB_API_KEY = os.environ.get("LANCEDB_API_KEY")
