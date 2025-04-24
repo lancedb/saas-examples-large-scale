@@ -1,6 +1,7 @@
 import modal
 
 cache_dir = "/data"
+# Initialize a volume to save dataset to. A drive of this name will appear under your modal storage tab
 volume = modal.Volume.from_name("embedding-wikipedia-lancedb", create_if_missing=True)
 
 image = modal.Image.debian_slim(python_version="3.11").pip_install(
@@ -17,7 +18,7 @@ with image.imports():
 def download_dataset(cache=False):
     # Download and save the dataset locally on Modal worker
     dataset = datasets.load_dataset(
-        "wikipedia", "20220301.en", num_proc=10, trust_remote_code=True
+        "wikipedia", "20220301.en", num_proc=16, trust_remote_code=True
     )
     dataset.save_to_disk(f"{cache_dir}/wikipedia")
 
