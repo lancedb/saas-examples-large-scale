@@ -2,15 +2,18 @@ from typing import Dict, List
 import modal
 import logging
 import time
-from datasets import load_from_disk, disable_caching
 from config import (
     CACHE_DIR, volume, image, get_secrets, BATCH_SIZE, EMBEDDING_BATCH_SIZE,
     CHUNK_SIZE, NUM_CHUNK_CONTAINERS, NUM_EMBEDDING_CONTAINERS, DEFAULT_TABLE_NAME,
     MODEL_NAME, VECTOR_DIM, LANCEDB_REGION, DATASET_PATH
 )
 from lancedb_ops import get_or_create_table, add_batch_data
+from datasets import load_from_disk, disable_caching
 
 logging.basicConfig(level=logging.INFO)
+
+# Add local sources to the image. Auto-mounting is deprecated 
+image = image.add_local_python_source("config", "lancedb_ops") 
 
 app = modal.App("wikipedia-processor",
                 image=image,
@@ -25,11 +28,13 @@ app = modal.App("wikipedia-processor",
     #region="us-east" # Using east-east further speeds up the ingestion rate but provisioning takes more time
 )
 class ChunkProcessor:
+    table_name: str = modal.parameter()
 
-    def __init__(self, table_name: str):
+    @modal.enter()
+    def deserialize_parameters(self):
         disable_caching()
         self.ds = load_from_disk(DATASET_PATH)["train"]
-        self.embedder = WikipediaProcessor(table_name)
+        self.embedder = WikipediaProcessor(table_name=self.table_name)
 
     @modal.method()
     def process_batch(self, batch_indices: list):
@@ -67,14 +72,15 @@ class ChunkProcessor:
     #region="us-east", # Using east-east further speeds up the ingestion rate but provisioning takes more time
 )
 class WikipediaProcessor:
+    table_name: str = modal.parameter()
 
-    def __init__(self, table_name: str):
+    @modal.enter()
+    def deserialize_parameters(self):
         from sentence_transformers import SentenceTransformer
-        import torch
         
         self.model = SentenceTransformer(MODEL_NAME, device='cuda')
         self.model.eval()
-        self.table = get_or_create_table(table_name)
+        self.table = get_or_create_table(self.table_name)
 
     @modal.method()
     def process_chunks(self, chunks: List[Dict]) -> int:
@@ -113,7 +119,7 @@ def start(down_scale: float = 1.0, table_name: str = DEFAULT_TABLE_NAME):
     
     # Process all batches in parallel. "map" is a modal util that auto-scales a function
     start = time.perf_counter()
-    results = list(ChunkProcessor(table_name).process_batch.map(indices_batches, return_exceptions=True))
+    results = list(ChunkProcessor(table_name=table_name).process_batch.map(indices_batches, return_exceptions=True))
     
     total_processed = sum(r["processed"] for r in results if not isinstance(r, Exception))
     duration = time.perf_counter() - start
