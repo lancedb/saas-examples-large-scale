@@ -1,48 +1,19 @@
+from typing import Dict, List
 import modal
 import logging
 import time
-import numpy as np
-from pathlib import Path
-import os
-from typing import List, Dict
-
-logging.basicConfig(level=logging.INFO)
-
-CACHE_DIR = "/data"
-
-
-def get_secrets():
-    LANCEDB_URI = os.environ.get("LANCEDB_URI")
-    LANCEDB_API_KEY = os.environ.get("LANCEDB_API_KEY")
-    if not LANCEDB_URI or not LANCEDB_API_KEY:
-        raise ValueError("LANCEDB_URI and LANCEDB_API_KEY must be set")
-    return [
-        modal.Secret.from_dict({"LANCEDB_URI": LANCEDB_URI}),
-        modal.Secret.from_dict({"LANCEDB_API_KEY": LANCEDB_API_KEY})
-    ]
-
-# This is the name of the volume under your modal "storage" tab that you created in "download.py"
-volume = modal.Volume.from_name("embedding-wikipedia-lancedb")
-
-
-image = modal.Image.debian_slim(python_version="3.11").pip_install(
-    "lancedb", "fastapi==0.110.1", "numpy==1.26.4", "datasets", "transformers",
-    "sentence-transformers"
+from datasets import load_from_disk, disable_caching
+from config import (
+    CACHE_DIR, volume, image, get_secrets, BATCH_SIZE, EMBEDDING_BATCH_SIZE,
+    CHUNK_SIZE, NUM_CHUNK_CONTAINERS, NUM_EMBEDDING_CONTAINERS, DEFAULT_TABLE_NAME,
+    MODEL_NAME, VECTOR_DIM, LANCEDB_REGION
 )
 
+logging.basicConfig(level=logging.INFO)
 
 app = modal.App("wikipedia-processor",
                 image=image,
                 secrets=get_secrets())
-
-
-# Best perf with h100 - 11 mins
-BATCH_SIZE = 100_000  # Main processing batch size
-EMBEDDING_BATCH_SIZE = 100_000  # Batch size for embedding
-CHUNK_SIZE = 512
-NUM_CHUNK_CONTAINERS = 300
-NUM_EMBEDDING_CONTAINERS = 50
-
 
 @app.cls(
     cpu=4,
@@ -54,12 +25,9 @@ NUM_EMBEDDING_CONTAINERS = 50
 )
 class ChunkProcessor:
     def __init__(self, table_name: str):
-        from datasets import load_from_disk, disable_caching
-
         disable_caching()
         self.ds = load_from_disk(f"{CACHE_DIR}/wikipedia")["train"]
         self.embedder = WikipediaProcessor(table_name)
-
 
     @modal.method()
     def process_batch(self, batch_indices: list):
@@ -90,7 +58,6 @@ class ChunkProcessor:
             
         return {"processed": processed, "chars": total_chars}
 
-
 @app.cls(
     gpu="H100",
     timeout=86400,
@@ -105,21 +72,21 @@ class WikipediaProcessor:
         import lancedb
         from lancedb.pydantic import Vector, LanceModel
         
-        self.model = SentenceTransformer('BAAI/bge-small-en-v1.5', device='cuda')
+        self.model = SentenceTransformer(MODEL_NAME, device='cuda')
         self.model.eval()
         
         db = lancedb.connect(
             uri=os.environ["LANCEDB_URI"],
             api_key=os.environ["LANCEDB_API_KEY"],
-            region="us-east-1"
+            region=LANCEDB_REGION
         )
         
-        table_name = table_name or "Wikipedia-ayush-250GPU-A10"
+        table_name = table_name or DEFAULT_TABLE_NAME
         try:
             self.table = db.open_table(table_name)
         except Exception:
             class Schema(LanceModel):
-                vector: Vector(384)
+                vector: Vector(VECTOR_DIM)
                 identifier: int
                 chunk_index: int
                 content: str
@@ -167,8 +134,7 @@ class WikipediaProcessor:
     memory=32000,
     #region="us-east"
 )
-def start(down_scale: float = 1.0, table_name: str = "wikipedia"):
-    from datasets import load_from_disk, disable_caching
+def start(down_scale: float = 1.0, table_name: str = DEFAULT_TABLE_NAME):
     disable_caching()
 
     ds = load_from_disk(f"{CACHE_DIR}/wikipedia")
@@ -188,7 +154,6 @@ def start(down_scale: float = 1.0, table_name: str = "wikipedia"):
     start = time.perf_counter()
     results = list(ChunkProcessor(table_name).process_batch.map(indices_batches, return_exceptions=True))
     
-
     total_processed = sum(r["processed"] for r in results if not isinstance(r, Exception))
     duration = time.perf_counter() - start
     
@@ -196,5 +161,5 @@ def start(down_scale: float = 1.0, table_name: str = "wikipedia"):
     print(f"Overall duration: {duration/60:.1f} minutes")
 
 @app.local_entrypoint()
-def main(down_scale: float = 1.0, table_name: str = "wikipedia"):
+def main(down_scale: float = 1.0, table_name: str = DEFAULT_TABLE_NAME):
     start.remote(down_scale, table_name)
