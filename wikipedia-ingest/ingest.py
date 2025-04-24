@@ -21,7 +21,10 @@ def get_secrets():
         modal.Secret.from_dict({"LANCEDB_API_KEY": LANCEDB_API_KEY})
     ]
 
+# This is the name of the volume under your modal "storage" tab that you created in "download.py"
 volume = modal.Volume.from_name("embedding-wikipedia-lancedb")
+
+
 image = modal.Image.debian_slim(python_version="3.11").pip_install(
     "lancedb", "fastapi==0.110.1", "numpy==1.26.4", "datasets", "transformers",
     "sentence-transformers"
@@ -47,25 +50,15 @@ NUM_EMBEDDING_CONTAINERS = 50
     volumes={CACHE_DIR: volume},
     max_containers=NUM_CHUNK_CONTAINERS,
     timeout=60*60*12,
-    #region="us-east"
+    #region="us-east" # Using east-east further speeds up the ingestion rate but provisioning takes more time
 )
 class ChunkProcessor:
     def __init__(self, table_name: str):
         from datasets import load_from_disk, disable_caching
-        import lancedb
-        from lancedb.pydantic import Vector, LanceModel
-        
+
         disable_caching()
         self.ds = load_from_disk(f"{CACHE_DIR}/wikipedia")["train"]
         self.embedder = WikipediaProcessor(table_name)
-        
-        class Schema(LanceModel):
-            vector: Vector(384)
-            identifier: int
-            chunk_index: int
-            content: str
-            url: str
-            title: str
 
 
     @modal.method()
@@ -90,12 +83,13 @@ class ChunkProcessor:
                     }
                 })
         
-        # Process in optimized embedding batches
+        # Process in optimized embedding batches of EMBEDDING_BATCH_SIZE
         for i in range(0, len(chunks), EMBEDDING_BATCH_SIZE):
             batch_chunks = chunks[i:i + EMBEDDING_BATCH_SIZE]
             processed += self.embedder.process_chunks.remote(batch_chunks)
             
         return {"processed": processed, "chars": total_chars}
+
 
 @app.cls(
     gpu="H100",
@@ -103,7 +97,7 @@ class ChunkProcessor:
     memory=64000,
     cpu=24,
     max_containers=NUM_EMBEDDING_CONTAINERS,
-    #region="us-east",
+    #region="us-east", # Using east-east further speeds up the ingestion rate but provisioning takes more time
 )
 class WikipediaProcessor:
     def __init__(self, table_name: str = None):
@@ -140,7 +134,7 @@ class WikipediaProcessor:
         
         texts = [c["text"] for c in chunks]
         
-        # Generate embeddings
+        # Generate embeddings in Batches of EMBEDDING_BATCH_SIZE
         t1 = time.time()
         with torch.no_grad():
             embeddings = self.model.encode(texts, convert_to_tensor=True)
@@ -148,7 +142,6 @@ class WikipediaProcessor:
         t2 = time.time()
         print(f"Embedding took {t2-t1:.1f}s")
         
-        # Prepare and insert data
         batch_data = [
             {
                 "vector": embedding,
@@ -182,20 +175,20 @@ def start(down_scale: float = 1.0, table_name: str = "wikipedia"):
     total_size = len(ds["train"])
     sample_size = int(total_size * down_scale)
     
-    # Calculate batch size based on number of containers
+    # Calculate batch size based on number of containers. This is useful to divide the batchaes across 
+    # containers well so that most of them get utilized till the end of ingestion jobs
     batch_size = (sample_size + NUM_CHUNK_CONTAINERS - 1) // NUM_CHUNK_CONTAINERS
     
-    # Create optimized batches for chunking
     indices_batches = [
         list(range(i, min(i + batch_size, sample_size))) 
         for i in range(0, sample_size, batch_size)
     ]
     
-    # Process all batches in parallel
+    # Process all batches in parallel. "map" is a modal util that auto-scales a function
     start = time.perf_counter()
     results = list(ChunkProcessor(table_name).process_batch.map(indices_batches, return_exceptions=True))
     
-    # Aggregate metrics
+
     total_processed = sum(r["processed"] for r in results if not isinstance(r, Exception))
     duration = time.perf_counter() - start
     
