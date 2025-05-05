@@ -19,14 +19,14 @@ MODEL_NAME = "BAAI/bge-small-en-v1.5"
 VECTOR_DIM = 384
 
 # Processing settings
-BATCH_SIZE = 100_000  # Main processing batch size
-EMBEDDING_BATCH_SIZE = 100_000  # Batch size for embedding
+BATCH_SIZE = 200_000  # Main processing batch size
+EMBEDDING_BATCH_SIZE = 200_000  # Batch size for embedding
 CHUNK_SIZE = 512
 NUM_CHUNK_CONTAINERS = 300
 NUM_EMBEDDING_CONTAINERS = 50
 
 # Default table name
-DEFAULT_TABLE_NAME = "wikipedia"
+DEFAULT_TABLE_NAME = "wikipedia-chang-test"
 
 # Image configuration
 image = modal.Image.debian_slim(python_version="3.11").pip_install(

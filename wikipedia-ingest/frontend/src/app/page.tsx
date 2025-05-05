@@ -52,7 +52,7 @@ export default function Home() {
           body: JSON.stringify({
             query,
             search_type: searchType,
-            limit: 5,
+            limit: 100,
             explain: explainEnabled
           }),
         });

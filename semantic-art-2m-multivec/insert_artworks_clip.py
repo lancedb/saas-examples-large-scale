@@ -9,8 +9,8 @@ logging.basicConfig(level=logging.INFO)
 CACHE_DIR = "/data"
 ARTSY_DIR = "/artsy"
 MODEL_DIR = "/cache"
-BATCH_SIZE = 50000
-EMBEDDING_BATCH_SIZE = 5000  # Smaller batches for GPU memory
+BATCH_SIZE = 100000
+EMBEDDING_BATCH_SIZE = 10000  # Smaller batches for GPU memory
 
 REGION = "any"
 
@@ -31,7 +31,13 @@ image = (modal.Image.debian_slim(python_version="3.11")
             "protobuf==5.29.3",
             "sentencepiece",
             "open-clip-torch"
-         ))
+         ).env(
+             
+             {
+                 "HF_DATASETS_IN_MEMORY_MAX_SIZE": "100000"
+             }
+         )
+         )
 
 DATA_SPLITS = {}
 for i in range(0,31):
@@ -88,7 +94,7 @@ DATA_VOLUME_MAPPINGS = {
     image=image,
     gpu="A100-80GB",
     timeout=86400,
-    memory=100000,
+    memory=120000,
     cpu=24,
     max_containers=4,
     volumes={
@@ -126,15 +132,9 @@ class EmbeddingProcessor:
 
         self.model_clip, _, _ = open_clip.create_model_and_transforms('hf-hub:laion/CLIP-ViT-B-32-256x256-DataComp-s34B-b86K')
 
-        self.model_siglip, _, _ = open_clip.create_model_and_transforms(
-            "ViT-L-16-SigLIP2-256",
-            pretrained=f"{MODEL_DIR}/models--timm--ViT-L-16-SigLIP2-256/snapshots/da9426945c7c5acbd3afd0c158c8bb9cfd4d8cc0/open_clip_pytorch_model.bin"
-        )
         self.model_clip = self.model_clip.cuda()
         self.model_clip.eval()
 
-        self.model_siglip = self.model_siglip.cuda()
-        self.model_siglip.eval()
 
         class SCHEMA(LanceModel):
             title: str
@@ -143,13 +143,12 @@ class EmbeddingProcessor:
             date: str
             image: bytes
             vector_clip: Vector(512)
-            vector_siglip: Vector(1024)
 
         # Connect to database
 
         db = lancedb.connect(
         uri="db://wikipedia-test-9cusod",
-        api_key="sk_BE62FD4WVFDSTHMNGEFRUNPIYQX6NTVNHVZ7ARONZF2BAWT26OJA====",
+        api_key=os.environ["LANCEDB_API_KEY"],
         region="us-east-1"
         )
 
@@ -157,10 +156,9 @@ class EmbeddingProcessor:
 
         #db = lancedb.connect(
         #uri="db://devrel-samp-9a5467",
-        #api_key="sk_43CPSRAJXRELJFTZIGSBUHEW6LZYIZO4MWKMLVCUE7JZJS3C3X7A====",
         #region="us-east-1"
         #)
-        tbl_name = "artsy_multi_vector_"
+        tbl_name = "artsy_clip"
         try:
             self.table = db.open_table(tbl_name)
         except Exception as e:
@@ -182,9 +180,11 @@ class EmbeddingProcessor:
         import pandas as pd
         from PIL import Image
         from concurrent.futures import ThreadPoolExecutor
-        from datasets import load_dataset, load_from_disk
+        from datasets import load_dataset, load_from_disk, disable_caching
+
 
         Image.MAX_IMAGE_PIXELS = None
+        disable_caching()
         
         # Unpack the batch arguments
         ds_name = batch_args["ds_name"]
@@ -259,7 +259,7 @@ class EmbeddingProcessor:
                 t1 = time.time()
                 
                 # Process records in parallel
-                with ThreadPoolExecutor(max_workers=100) as executor:
+                with ThreadPoolExecutor(max_workers=50) as executor:
                     results = list(executor.map(process_single_record, embed_chunk))
                 
                 # Separate successful results
@@ -299,17 +299,11 @@ class EmbeddingProcessor:
                     embeddings_clip = embeddings_clip / embeddings_clip.norm(dim=-1, keepdim=True)
                     embeddings_clip = embeddings_clip.cpu().numpy()
 
-                    embeddings_siglip = self.model_siglip.encode_image(image_batch)
-                    embeddings_siglip = embeddings_siglip / embeddings_siglip.norm(dim=-1, keepdim=True)
-                    embeddings_siglip = embeddings_siglip.cpu().numpy()
-
-                embeddings = np.concatenate([embeddings_clip, embeddings_siglip], axis=1)
                 # Convert to list of vectors
-                embeddings = [vector.tolist() for vector in embeddings]
+                embeddings = [vector.tolist() for vector in embeddings_clip]
                 # Add embeddings directly to embed_chunk records
                 for record, embedding in zip(embed_chunk, embeddings):
-                    record["vector_clip"] = embedding[:512]
-                    record["vector_siglip"] = embedding[512:]
+                    record["vector_clip"] = embedding
 
                 t2= time.time()
                 logging.info(f"Embedding {len(embed_chunk)} records in {t2 - t1} seconds")
@@ -369,43 +363,6 @@ def get_batch_indices(batch_args: dict):
     return [(split_name, i, min(i + BATCH_SIZE, total_size)) 
             for i in range(0, total_size, BATCH_SIZE)]
 
-'''
-@stub.local_entrypoint()
-def main():
-    total_processed = 0
-    processor = EmbeddingProcessor()
-    batch_args = []
-    for data in DATA_SPLITS.keys():
-        for split in DATA_SPLITS[data] if not data.startswith("artsy") else [None]:
-            print(f"\nProcessing split: {split} in dataset: {data}")
-            try:
-                batch_indices = get_batch_indices.remote(split, data)
-                batch_args.extend([
-                        {"split_name": split, "start_idx": start, "end_idx": end, "ds_name": data} 
-                        for split, start, end in batch_indices
-                    ])
-            except Exception as e:
-                print(f"Error getting batch indices: {e}")
-                continue
-    try:
-        results = processor.process_batch.map(batch_args, return_exceptions=True)
-
-        split_total = 0
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                print(f"Error in batch {i}: {result}")
-            elif result > 0:
-                split_total += result
-                print(f"Processed batch {i}, records: {result}, total: {split_total}")
-
-        total_processed += split_total
-        print(f"Records ingested: {split_total}")
-
-    except Exception as e:
-        print(f"Error processing split : {e}")
-
-    print(f"All splits completed! Total records ingested: {total_processed}")
-'''
 
 @stub.local_entrypoint()
 def main():

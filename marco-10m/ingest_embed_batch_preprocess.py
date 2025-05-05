@@ -3,22 +3,35 @@ import logging
 import io
 import time
 import numpy as np
+import os
 
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
+def get_secrets():
+    LANCEDB_URI = os.environ.get("LANCEDB_URI")
+    LANCEDB_API_KEY = os.environ.get("LANCEDB_API_KEY")
+    if not LANCEDB_URI or not LANCEDB_API_KEY:
+        raise ValueError("LANCEDB_URI and LANCEDB_API_KEY must be set")
+    return [
+        modal.Secret.from_dict({"LANCEDB_URI": LANCEDB_URI}),
+        modal.Secret.from_dict({"LANCEDB_API_KEY": LANCEDB_API_KEY})
+    ]
+
 CACHE_DIR = "/data"
 MODEL_DIR = "/cache"
-BATCH_SIZE = 200_000
-GATHER_BATCH_SIZE = 20000
-EMBEDDING_BATCH_SIZE = 8000
+BATCH_SIZE = 50_000
+GATHER_BATCH_SIZE = 10000
+EMBEDDING_BATCH_SIZE = 10000
 INGEST_BATCH_SIZE = 10000
+MAX_CONTAINERS = 50
 
 volume = modal.Volume.from_name("marco-10M")
 model_volume = modal.Volume.from_name("hf-hub-cache")
 
-stub = modal.App("marqo-gs-embed-ingest-class")
+stub = modal.App("marqo-gs-embed-ingest-class", 
+                secrets=get_secrets())
 
 image = (modal.Image.debian_slim(python_version="3.11")
          .pip_install(
@@ -40,18 +53,18 @@ image = (modal.Image.debian_slim(python_version="3.11")
 
 @stub.cls(
     image=image,
-    gpu="A100",
+    gpu="H100",
     timeout=86400,
     memory=120000,
     cpu=24,
-    max_containers=10,
+    max_containers=MAX_CONTAINERS,
     volumes={
         CACHE_DIR: volume,
         MODEL_DIR: model_volume},
  region="us-east"
 )
 class EmbeddingProcessor:
-    def __init__(self):
+    def __init__(self, table_name: str):
         import os
         from datasets import load_from_disk, disable_caching
         import open_clip
@@ -88,12 +101,12 @@ class EmbeddingProcessor:
 
         # Connect to database
         db = lancedb.connect(
-        uri="db://wikipedia-test-9cusod",
-        api_key="sk_BJIR2QXJ7JAM7AUMTHHPDLGJRY26GM3LN4ONK5TKTTGCFORC4NEQ====",
-        region="us-east-1"
+            uri=os.environ["LANCEDB_URI"],
+            api_key=os.environ["LANCEDB_API_KEY"],
+            region="us-east-1"
         )
 
-        tbl_name = "macro-10m-docs-bs20000"
+        tbl_name = table_name
         try:
             self.table = db.open_table(tbl_name)
         except Exception as e:
@@ -256,7 +269,7 @@ def get_batch_indices(split_name: str):
             for i in range(0, total_size, BATCH_SIZE)]
 
 @stub.local_entrypoint()
-def main():
+def main(table_name: str = "macro-10m-docs-default"):
     splits = [
      'in_domain',
      'novel_document', 
@@ -264,7 +277,7 @@ def main():
      'zero_shot']
     total_processed = 0
 
-    processor = EmbeddingProcessor()
+    processor = EmbeddingProcessor(table_name=table_name)
     batch_args = []
     # Hardcode
     split_sizes = {

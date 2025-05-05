@@ -49,7 +49,6 @@ SCALEDOWN_WINDOW = 60*15
 
 
 @app.cls(
-    gpu="A10",
     cpu=8,
     memory=32000,
     min_containers=1,
@@ -68,10 +67,10 @@ class WikipediaSearcher:
         # Initialize the model
         self.model = SentenceTransformer('BAAI/bge-small-en-v1.5', device=self.device)
         self.model.eval()
-        self.reranker = ColbertReranker(
-            "answerdotai/answerai-colbert-small-v1",
-            device=self.device
-        )
+        #self.reranker = ColbertReranker(
+        #    "answerdotai/answerai-colbert-small-v1",
+        #    device=self.device
+        #)
         
         # Connect to LanceDB
         self.db = lancedb.connect(
@@ -106,7 +105,7 @@ class WikipediaSearcher:
                 "chunk_index"
             ])
             
-            query_plan = search_query.explain_plan(verbose=True)
+            query_plan = search_query.explain_plan(verbose=True) if explain else None
             
             start_time = time.time()
             results = search_query.to_pandas()

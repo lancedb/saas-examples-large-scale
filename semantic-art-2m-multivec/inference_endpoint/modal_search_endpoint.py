@@ -1,8 +1,7 @@
+from lancedb import vector
 import modal
-from typing import Union, Any
+import os
 import base64
-from fastapi import FastAPI, Request, HTTPException
-import json
 
 # Create modal image with dependencies
 image = (modal.Image.debian_slim(python_version="3.10")
@@ -28,27 +27,64 @@ with image.imports():
     import time
 
 # Create a class for the model
+# Update MODEL_CONFIGS to include caption vectors
+
+SEARCH_TYPES = {
+    "clip_text_to_image": {
+        "model": "clip",
+        "vector_column": "vector_clip",
+    },
+    "sigplip_text_to_image": {
+        "model": "siglip",
+        "vector_column": "vector_siglip",
+    },
+    "clip_image_to_image": {
+        "model": "clip",
+        "vector_column": "vector_clip",
+    },
+    "sigplip_image_to_image": {
+        "model": "siglip",
+        "vector_column": "vector_siglip",
+    },
+    "clip_caption": {
+        "model": "clip",
+        "vector_column": "vector_clip_caption",
+    },
+    "sigplip_caption": {
+        "model": "siglip",
+        "vector_column": "vector_siglip_caption",
+    },
+    "full_text": {
+        "vector_column": ["caption", "artist", "title"],
+    },
+    "hybrid_clip": {
+        "model": "clip",
+        "vector_column": "vector_clip_caption",
+    },
+    "hybrid_siglip": {
+        "model": "siglip",
+        "vector_column": "vector_siglip_caption",
+    },
+}
+
 MODEL_CONFIGS = {
     "clip": {
         #"name": "ViT-B-32",
         "model_name": "hf-hub:laion/CLIP-ViT-B-32-256x256-DataComp-s34B-b86K", # TODO: used cached
-        "vector_col": "vector_clip",
-        "table": "artsy_multi_vector_prod",
     },
     "siglip": {
         "model_name": "ViT-L-16-SigLIP2-256",
         "pretrained": "webli",
-        "table": "artsy_multi_vector_prod",
-        "vector_col": "vector_siglip",
     }
-}
+    }
+
+TABLE_NAME = "artsy_multi_vector_caption_large"
 
 @app.cls(
     image=image,
     gpu="any",
     cpu=8,
     scaledown_window=1200,
-    region="us-east-1"
 )
 class ClipSearcher:
 
@@ -62,7 +98,7 @@ class ClipSearcher:
         
         self.db = lancedb.connect(
             uri="db://wikipedia-test-9cusod",
-            api_key="sk_CYNOLZVOO5GP3AKZIAX24Q2OGISYW4PJ4NMYYUEZNVXO6OW4T5LA====",
+            api_key=os.environ["LANCEDB_API_KEY"],
             region="us-east-1"
             )
         
@@ -80,7 +116,7 @@ class ClipSearcher:
             self.models[model_type] = model
             self.preprocessors[model_type] = preprocess
             self.tokenizers[model_type] = open_clip.get_tokenizer(config["model_name"])
-            self.tables[model_type] = self.db.open_table(config["table"])
+        self.table = self.db.open_table(TABLE_NAME)
 
     def _process_image(self, image_bytes, model_type="siglip"):
         # TODO: align with ingestion code
@@ -107,35 +143,44 @@ class ClipSearcher:
             raise Exception(f"Text processing failed: {str(e)}")
 
     @modal.method()
-    def search_by_text(self, query_text: str, model_type: str = "siglip", limit: int = 5):
+    def search_by_text(self, query_text: str, search_type: str, limit: int = 5):
         try:
+            model_type = SEARCH_TYPES[search_type]["model"]
+            vector_col = SEARCH_TYPES[search_type].get("vector_column")
+            if search_type == "full_text":
+                return self.full_text_search(query_text, limit)
+
             features = self._process_text(query_text, model_type)
+
             t1 = time.time()
-            results = self.tables[model_type].search(
+            results = self.table.search(
                 features,
-                vector_column_name=MODEL_CONFIGS[model_type]["vector_col"],
-                ).limit(limit).with_row_id(True).select(['title', 'artist', 'image', 'date', 'ds_name', "_rowid"]).to_pandas()
+                vector_column_name=vector_col,
+            ).limit(limit).with_row_id(True).select(['title', 'artist', 'image', 'date', 'ds_name', "_rowid"]).to_pandas()
             t2 = time.time()
             print(f"Search took {t2 - t1} seconds")
             # Convert image bytes to base64
             for idx, row in results.iterrows():
                 if 'image' in row and row['image'] is not None:
                     results.at[idx, 'image'] = base64.b64encode(row['image']).decode('utf-8')
-            
-            return results.to_dict(orient='records')
+            print("text search result ", results)
+            results =  results.to_dict(orient='records')
+            return results
         except Exception as e:
             print(f"Text search error: {str(e)}")
             return {"error": f"Text search failed: {str(e)}"}
 
     @modal.method()
-    def search_by_image(self, image_bytes: bytes, model_type: str = "siglip", limit: int = 5):
+    def search_by_image(self, image_bytes: bytes, search_type, limit: int = 5):
         try:
+            model_type = SEARCH_TYPES[search_type]["model"]
+            vector_col = SEARCH_TYPES[search_type].get("vector_column")
             features = self._process_image(image_bytes, model_type)
 
             t1 = time.time()
-            results = self.tables[model_type].search(
+            results = self.table.search(
                 features, 
-                vector_column_name=MODEL_CONFIGS[model_type]["vector_col"],
+                vector_column_name=vector_col,
                 ).limit(limit).with_row_id(True).select(['title', 'artist', 'image', 'date', 'ds_name', "_rowid"]).to_pandas()
             t2 = time.time()
             print(f"Search took {t2 - t1} seconds")
@@ -158,9 +203,9 @@ class ClipSearcher:
             # random list of dim 512
             dim = 512 if model_type == "clip" else 1024
             feats = np.random.rand(dim).tolist() # Remove harcoding
-            results = self.tables[model_type].search(
+            results = self.table.search(
                 feats,
-                vector_column_name=MODEL_CONFIGS[model_type]["vector_col"],
+                vector_column_name="vector_clip",
                 ).limit(limit).to_pandas()
             
             # Convert image bytes to base64 before dropping the column
@@ -176,6 +221,51 @@ class ClipSearcher:
         except Exception as e:
             print(f"Image search error: {str(e)}")
             return {"error": f"Image search failed: {str(e)}"}
+        
+    @modal.method()
+    def full_text_search(self, query_text: str, limit: int = 5):
+        try:
+            # Use text search on both title and artist fields
+            results = self.table.search(
+                query_text,
+                query_type="fts", 
+                fts_columns=["title", "artist", "caption"]
+            ).limit(limit).select(
+                ["title", "artist", "image", "date", "ds_name", "_rowid"]
+            ).to_pandas()
+            
+            # Convert image bytes to base64
+            for idx, row in results.iterrows():
+                if 'image' in row and row['image'] is not None:
+                    results.at[idx, 'image'] = base64.b64encode(row['image']).decode('utf-8')
+            return results.to_dict(orient='records')
+        except Exception as e:
+            print(f"Full text search error: {str(e)}")
+            return {"error": f"Full text search failed: {str(e)}"}
+    
+    @modal.method()
+    def hybrid_search(self, query_text: str, search_type="hybrid_clip", limit: int = 5):
+        try:
+            model_type = SEARCH_TYPES[search_type]["model"]
+            vector_col_name = SEARCH_TYPES[search_type].get("vector_column")
+            features = self._process_text(query_text, model_type)
+            results = self.table.search(
+                query_type="hybrid",
+                vector_column_name=vector_col_name
+                ).vector(features).text(query_text).limit(limit).select(
+                    ["title", "artist", "image", "date", "ds_name", "_rowid"]
+                ).to_pandas()
+
+            # Convert image bytes to base64
+            for idx, row in results.iterrows():
+                if 'image' in row and row['image'] is not None:
+                    results.at[idx, 'image'] = base64.b64encode(row['image']).decode('utf-8')
+
+            return results.to_dict(orient='records')
+        except Exception as e:
+            print(f"Hybrid search error: {str(e)}")
+            return {"error": f"Hybrid search failed: {str(e)}"}
+ 
 
 @app.function()
 @modal.fastapi_endpoint(method="POST")
@@ -184,27 +274,36 @@ async def search(request: dict):
         searcher = ClipSearcher()
         query_text = request.get("query")
         image_data = request.get("image")
-        model = request.get("model", "siglip")
         limit = request.get("limit", 5)
-        
-        if model not in MODEL_CONFIGS:
-            return {"status": "error", "message": f"Invalid model type. Use one of: {', '.join(MODEL_CONFIGS.keys())}"}
-        
-        if query_text:
-            results = searcher.search_by_text.remote(query_text, model, limit)
-        elif image_data:
-            if isinstance(image_data, str) and "base64," in image_data:
-                image_data = image_data.split("base64,")[1]
+        search_type = request.get("search_type", "clip_text_to_image")
+
+        image_bytes = None
+        if image_data:
+            image_data = image_data.split("base64,")[1]
             image_bytes = base64.b64decode(image_data)
-            results = searcher.search_by_image.remote(image_bytes, model, limit)
-        else:
-            results = searcher.search_random.remote(model, limit)
+        print("search type ", search_type)
+        if search_type not in SEARCH_TYPES:
+            return {"status": "error", "message": f"Invalid search type. Use one of: {list(SEARCH_TYPES.keys())}"}
         
-        if isinstance(results, dict) and "error" in results:
-            return {"status": "error", "message": results["error"]}
-            
+        if search_type in ["clip_image_to_image", "sigplip_image_to_image"]:
+            print("Searching by image")
+            results =  searcher.search_by_image.remote(image_bytes, search_type, limit)
+        elif search_type in ["clip_text_to_image", "sigplip_text_to_image", "clip_caption", "siglip_caption"]:
+            print("Searching by text")
+            results =  searcher.search_by_text.remote(query_text, search_type, limit )
+            print("Searched by text")
+        elif search_type in ["full_text"]:
+            print("Searching by full text")
+            results =  searcher.full_text_search.remote(query_text, limit)
+        elif search_type in ["hybrid_clip", "hybrid_siglip"]:
+            print("Searching by hybrid")
+            results =  searcher.hybrid_search.remote(query_text, search_type, limit)
+        else:
+            return {"status": "error", "message": "Invalid search type"}
+        
+
+        print("resuslts retured ", results)
         return {"status": "success", "data": results}
-            
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -213,7 +312,7 @@ async def search(request: dict):
 def get_total_rows():
     try:
         searcher = ClipSearcher()
-        table = searcher.tables["siglip"]
+        table = searcher.table
         total_rows = table.count_rows()
         return {"total_rows": total_rows}
     except Exception as e:

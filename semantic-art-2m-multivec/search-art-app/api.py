@@ -6,6 +6,7 @@ from typing import List
 import numpy as np
 from PIL import Image
 import io
+import os
 from transformers import AutoProcessor, AutoModel
 import torch
 import base64
@@ -25,7 +26,7 @@ app.add_middleware(
 def get_lancedb_table():
     db = lancedb.connect(
         uri="db://devrel-samp-9a5467",
-        api_key="sk_THUBNC75R5AYPMMRMUV6SEPWWLSPXY7ZSKVQPUUFVCOOQGYKGUKA====",
+        api_key=os.environ["LANCEDB_API_KEY"],
         region="us-east-1"
     )
     return db.open_table("artworks-modal-reverse-valid-2")

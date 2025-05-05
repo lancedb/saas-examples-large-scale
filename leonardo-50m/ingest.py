@@ -5,22 +5,35 @@ import requests
 from PIL import Image
 import numpy as np
 import aiohttp
+import time
 import asyncio
+import os
 
 logging.basicConfig(level=logging.INFO)
+
+def get_secrets():
+    LANCEDB_URI = os.environ.get("LANCEDB_URI")
+    LANCEDB_API_KEY = os.environ.get("LANCEDB_API_KEY")
+    if not LANCEDB_URI or not LANCEDB_API_KEY:
+        raise ValueError("LANCEDB_URI and LANCEDB_API_KEY must be set")
+    return [
+        modal.Secret.from_dict({"LANCEDB_URI": LANCEDB_URI}),
+        modal.Secret.from_dict({"LANCEDB_API_KEY": LANCEDB_API_KEY}),
+    ]
 
 CACHE_DIR = "/data"
 ARTSY_DIR = "/artsy"
 MODEL_DIR = "/cache"
 BATCH_SIZE = 50000
-EMBEDDING_BATCH_SIZE = 5000  # avoid GPU OOM
+EMBEDDING_BATCH_SIZE = 10000  # avoid GPU OOM
 
 HF_DATASET_NAME = "bigdata-pw/leonardo"
 MAX_IMG_DOWNLOAD_RETRIES = 1 # You can change this to a higher number, but it will take longer
+MAX_CONCURRENT_GPUS = 50
 
 data_vol = modal.Volume.from_name("leonardo-shards")
 
-stub = modal.App("marqo-gs-embed-ingest-class")
+stub = modal.App("leonardo-embed-ingest", secrets=get_secrets())
 
 # Add to imports at the top
 import aiohttp
@@ -47,23 +60,22 @@ SHARD_SIZE = 1_000_000
 TOTAL_ROWS = 958_000_000
 NUM_SHARDS = TOTAL_ROWS // SHARD_SIZE + (1 if TOTAL_ROWS % SHARD_SIZE != 0 else 0)
 
-HF_TOKEN = "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" 
 
 
 
 @stub.cls(
     image=image,
-    gpu="A100",
+    gpu="H100",
     timeout=86400,
     memory=100000,
     cpu=32,
-    max_containers=6,
+    max_containers=MAX_CONCURRENT_GPUS,
     volumes={
         CACHE_DIR: data_vol,
         }
 )
 class EmbeddingProcessor:
-    def __init__(self):
+    def __init__(self, table_name: str):
         import os
         from datasets import load_from_disk, load_dataset
         import open_clip
@@ -85,22 +97,13 @@ class EmbeddingProcessor:
             image: bytes
             vector_clip: Vector(512)
 
-        # Connect to database
-
         db = lancedb.connect(
-            uri="db://wikipedia-test-9cusod",
-            api_key="sk_CYNOLZVOO5GP3AKZIAX24Q2OGISYW4PJ4NMYYUEZNVXO6OW4T5LA====",
+            uri=os.environ["LANCEDB_URI"],
+            api_key=os.environ["LANCEDB_API_KEY"],
             region="us-east-1"
             )
 
-        # Devrel samp
-
-        #db = lancedb.connect(
-        #uri="db://devrel-samp-9a5467",
-        #api_key="sk_43CPSRAJXRELJFTZIGSBUHEW6LZYIZO4MWKMLVCUE7JZJS3C3X7A====",
-        #region="us-east-1"
-        #)
-        tbl_name = "flickr-test"
+        tbl_name = table_name
         try:
             self.table = db.open_table(tbl_name)
         except Exception as e:
@@ -112,7 +115,7 @@ class EmbeddingProcessor:
                     self.table = db.open_table(tbl_name)
                 else:
                     raise e
-        login(token=HF_TOKEN)
+
 
     @modal.method()
     def process_batch(self, batch_args: dict):
@@ -268,13 +271,14 @@ class EmbeddingProcessor:
         return total_inserted
 
 @stub.local_entrypoint()
-def main():
+def main(table_name: str = "leonardo-default"):
     total_processed = 0
-    processor = EmbeddingProcessor()
-    
-    start_shard = 25 
+    processor = EmbeddingProcessor(table_name=table_name)
+
+    start_shard = 0
     print(f"Starting processing from shard {start_shard} to {NUM_SHARDS} shards")
-    
+    print(f"Using table: {table_name}")
+
     try:
         # Generate shard arguments starting from shard 35
         batch_args = [
@@ -283,7 +287,7 @@ def main():
         ]
             
         print(f"\nScheduling {len(batch_args)} shards for parallel processing")
-        
+        t1 = time.time()
         results = processor.process_batch.map(batch_args, return_exceptions=True)
         
         for i, result in enumerate(results, start=start_shard):
@@ -295,10 +299,11 @@ def main():
                 remaining_rows = TOTAL_ROWS - (start_shard * SHARD_SIZE)
                 progress = (total_processed/(remaining_rows))*100
                 print(f"Progress: {total_processed:,}/{remaining_rows:,} remaining records ({progress:.2f}%)")
-            
+        t2 = time.time()
+        print(f"Processed {total_processed} records in  minutes {((t2-t1)/60):.2f}")
     except Exception as e:
         print(f"Error processing dataset: {e}")
-    
+
     print(f"Processing completed! Total records ingested: {total_processed:,}")
 
 #if __name__ == "__main__":

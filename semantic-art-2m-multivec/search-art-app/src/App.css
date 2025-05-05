@@ -272,3 +272,8 @@ header {
   100% { opacity: 0; }
 }
 
+.search-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
