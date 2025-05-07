@@ -57,9 +57,12 @@ DATA_VOLUME_MAPPINGS = {
 
 # --- LanceDB Configuration ---
 LANCEDB_URI = "db://wikipedia-test-9cusod" # Replace with your actual URI if needed
-LANCEDB_API_KEY = "sk_BE62FD4WVFDSTHMNGEFRUNPIYQX6NTVNHVZ7ARONZF2BAWT26OJA====" # Replace with your actual API key if needed
+LANCEDB_API_KEY = os.environ.get("LANCEDB_API_KEY")
 LANCEDB_REGION = "us-east-1"
 DEFAULT_TABLE_NAME = "artsy_multi_vector_"
+
+if not LANCEDB_API_KEY:
+    raise ValueError("LANCEDB_API_KEY is not set. Please set it in your environment or directly in the script.")
 
 # --- LanceDB Schema ---
 class SCHEMA(LanceModel):
