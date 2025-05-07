@@ -3,7 +3,7 @@ import os
 cache_dir = "/data"
 
 volume = modal.Volume.from_name("leonardo-shards", create_if_missing=True)
-HF_TOKEN = os.environ["HF_TOKEN"
+HF_TOKEN = os.environ["HF_TOKEN"]
 HF_DATASET_NAME = "bigdata-pw/leonardo"
 
 image = modal.Image.debian_slim(python_version="3.11").pip_install(
