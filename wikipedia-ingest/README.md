@@ -33,3 +33,9 @@ modal deploy wikipedia-ingest.py
 * update the `frontend/src/config/endpoints.ts` file with your endpoint urls from previous section output.
 * Run locally using `npm run dev`
 * Deploy using `vercel`
+
+# Try Live demo app
+[Link](https://wikisearch-coral.vercel.app/)
+<img width="1262" alt="Screenshot 2025-05-08 at 9 13 28 PM" src="https://github.com/user-attachments/assets/10f20ffe-30f7-465b-9664-93bb670c094b" />
+
+
