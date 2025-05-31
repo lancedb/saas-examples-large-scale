@@ -99,23 +99,42 @@ export default function Home() {
   const currentResults = results.slice(startIndex, endIndex);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <nav className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-3 max-w-3xl">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <nav className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="container mx-auto px-4 py-3 max-w-3xl flex items-center justify-between">
           <Image
             src="/logo.png"
             alt="Wikipedia Search Logo"
-            width={80}
-            height={80}
+            width={100}
+            height={100}
             priority
+            className="transition-transform hover:scale-105"
           />
+          <div className="flex items-center gap-6">
+            <a 
+              href="https://lancedb.com/pricing" 
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors duration-200"
+            >
+              Pricing
+            </a>
+            <a 
+              href="https://accounts.lancedb.com/sign-up" 
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-gray-900 px-3 py-1.5 border border-gray-300 rounded-md hover:border-blue-600 hover:text-blue-600 transition-all duration-200"
+            >
+              Sign Up
+            </a>
+          </div>
         </div>
       </nav>
 
-      <main className="container mx-auto px-4 py-6 max-w-3xl">
+      <main className="container mx-auto px-4 py-8 max-w-3xl">
         <div className="flex flex-col items-center text-center gap-4 mb-8">
-          <h1 className="text-3xl font-bold">Wikipedia Search</h1>
-          <div className="w-16 h-16">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">Wikipedia Search</h1>
+          <div className="w-16 h-16 transition-transform hover:scale-110">
             <Image
               src="/hero.png"
               alt="Globe illustration"
@@ -143,10 +162,10 @@ export default function Home() {
                 });
               }}
               onMouseLeave={() => setTooltip(null)}
-              className={`px-4 py-2 rounded-lg border transition-colors ${
+              className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
                 searchType === 'vector'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:shadow-sm'
               }`}
             >
               Semantic
@@ -162,10 +181,10 @@ export default function Home() {
                 });
               }}
               onMouseLeave={() => setTooltip(null)}
-              className={`px-4 py-2 rounded-lg border transition-colors ${
+              className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
                 searchType === 'full_text'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:shadow-sm'
               }`}
             >
               Keyword
@@ -181,10 +200,10 @@ export default function Home() {
                 });
               }}
               onMouseLeave={() => setTooltip(null)}
-              className={`px-4 py-2 rounded-lg border transition-colors ${
+              className={`px-4 py-2 rounded-lg border transition-all duration-200 ${
                 searchType === 'hybrid'
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:shadow-sm'
               }`}
             >
               Hybrid
@@ -197,12 +216,12 @@ export default function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-              className="flex-1 p-2 border rounded-lg"
+              className="flex-1 p-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             />
             <button
               onClick={handleSearch}
               disabled={loading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400 hover:bg-blue-700 transition-colors"
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400 hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
             >
               {loading ? 'Searching...' : 'Search'}
             </button>
@@ -210,7 +229,7 @@ export default function Home() {
 
           {tooltip && (
             <div 
-              className="fixed z-50 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-md shadow-sm max-w-xs transition-opacity duration-200"
+              className="fixed z-50 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-md shadow-lg max-w-xs transition-all duration-200"
               style={{
                 left: tooltip.x,
                 top: tooltip.y,
@@ -223,7 +242,7 @@ export default function Home() {
         </div>
 
         {(responseTime || backendTime) && (
-          <div className="fixed bottom-4 right-4 bg-black text-white px-4 py-2 rounded-lg transition-opacity">
+          <div className="fixed bottom-4 right-4 bg-black/90 text-white px-4 py-2 rounded-lg transition-all duration-300 shadow-lg backdrop-blur-sm">
             {backendTime && <div>{backendTime}</div>}
             {responseTime && <div>{responseTime}</div>}
           </div>
@@ -289,7 +308,7 @@ export default function Home() {
                         {currentResults.map((result, index) => (
                           <div 
                             key={index} 
-                            className="group border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-md transition-all duration-200 bg-white"
+                            className="group border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-lg transition-all duration-200 bg-white"
                           >
                             <h2 className="text-base font-semibold mb-1.5 text-gray-800 group-hover:text-blue-600 transition-colors">
                               {result.title}
@@ -332,7 +351,7 @@ export default function Home() {
                           <button
                             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                             disabled={currentPage === 1}
-                            className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                            className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                           >
                             Previous
                           </button>
@@ -341,10 +360,10 @@ export default function Home() {
                               <button
                                 key={i}
                                 onClick={() => setCurrentPage(i + 1)}
-                                className={`px-3 py-1 rounded-lg border ${
+                                className={`px-3 py-1 rounded-lg border transition-all duration-200 ${
                                   currentPage === i + 1
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100'
+                                    : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:shadow-sm'
                                 }`}
                               >
                                 {i + 1}
@@ -357,7 +376,7 @@ export default function Home() {
                           <button
                             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                             disabled={currentPage === totalPages}
-                            className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                            className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
                           >
                             Next
                           </button>
@@ -376,11 +395,11 @@ export default function Home() {
                   }`}
                 >
                   {activeTab === 'parameters' && (
-                    <div className="bg-white rounded-lg border border-gray-200">
+                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                       <div className="p-4">
                         <h3 className="text-sm font-semibold text-gray-800 mb-3 text-center">Search Parameters</h3>
                         <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
                             <h4 className="text-xs font-semibold text-gray-500 mb-2 pb-1 border-b border-gray-200">Search Configuration</h4>
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
@@ -456,7 +475,7 @@ export default function Home() {
                               </div>
                             </div>
                           </div>
-                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
                             <h4 className="text-xs font-semibold text-gray-500 mb-2 pb-1 border-b border-gray-200">Results Configuration</h4>
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
@@ -544,11 +563,11 @@ export default function Home() {
                   }`}
                 >
                   {activeTab === 'queryPlan' && queryPlan && (
-                    <div className="bg-white rounded-lg border border-gray-200">
+                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                       <div className="p-4">
                         <div className="mb-4">
-                          <h3 className="text-sm font-semibold text-gray-800 mb-2">Query Plan - API Response</h3>
-                          <pre className="font-mono text-xs leading-relaxed overflow-x-auto text-gray-800 bg-gray-50 p-2 rounded border border-gray-200">
+                          <h3 className="text-sm font-semibold text-gray-800 mb-2 text-center">Query Plan - API Response</h3>
+                          <pre className="font-mono text-xs leading-relaxed overflow-x-auto text-gray-800 bg-gray-50 p-2 rounded border border-gray-200 shadow-sm">
                             {queryPlan?.split('\n').map((line, i) => (
                               <div key={i} className="whitespace-pre">
                                 {line}
