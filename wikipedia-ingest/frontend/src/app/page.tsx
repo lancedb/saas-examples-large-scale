@@ -199,29 +199,31 @@ export default function Home() {
           </div>
         )}
 
-        <div className="space-y-4">
-          {currentResults.map((result, index) => (
-            <div key={index} className="border rounded-lg p-4 shadow-sm">
-              <h2 className="text-xl font-semibold mb-2">{result.title}</h2>
-              <p className="text-gray-700 mb-2">{result.content}</p>
-              <a
-                href={result.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                Source
-              </a>
+        {results.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center">
+              <h2 className="text-2xl font-semibold text-gray-800">
+                Search Results <span className="text-gray-500 font-normal">(showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length})</span>
+              </h2>
             </div>
-          ))}
-
-          {/* Pagination Controls */}
-          {results.length > 0 && (
-            <div className="flex justify-between items-center mt-6">
-              <div className="text-sm text-gray-600">
-                Showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length} results
+            {currentResults.map((result, index) => (
+              <div key={index} className="border rounded-lg p-4 shadow-sm">
+                <h2 className="text-xl font-semibold mb-2">{result.title}</h2>
+                <p className="text-gray-700 mb-2">{result.content}</p>
+                <a
+                  href={result.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Source
+                </a>
               </div>
-              <div className="flex gap-2">
+            ))}
+
+            {/* Pagination Controls */}
+            <div className="flex justify-end items-center mt-6">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
@@ -229,8 +231,23 @@ export default function Home() {
                 >
                   Previous
                 </button>
-                <div className="px-4 py-2 text-gray-600">
-                  Page {currentPage} of {totalPages}
+                <div className="flex gap-1">
+                  {[...Array(Math.min(4, totalPages))].map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setCurrentPage(i + 1)}
+                      className={`px-3 py-1 rounded-lg border ${
+                        currentPage === i + 1
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  {totalPages > 4 && (
+                    <span className="px-2 py-1 text-gray-500">...</span>
+                  )}
                 </div>
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
@@ -241,8 +258,8 @@ export default function Home() {
                 </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
     </div>
   );
