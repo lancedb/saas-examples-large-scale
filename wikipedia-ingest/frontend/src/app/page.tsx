@@ -378,41 +378,156 @@ export default function Home() {
                   {activeTab === 'parameters' && (
                     <div className="bg-white rounded-lg border border-gray-200">
                       <div className="p-4">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <span className="text-gray-500">Search Type:</span>
-                            <span className="ml-2 text-gray-800 font-medium">
-                              {searchType === 'vector' ? 'Semantic' : 
-                               searchType === 'full_text' ? 'Keyword' : 'Hybrid'}
-                            </span>
+                        <h3 className="text-sm font-semibold text-gray-800 mb-3 text-center">Search Parameters</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                            <h4 className="text-xs font-semibold text-gray-500 mb-2 pb-1 border-b border-gray-200">Search Configuration</h4>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "The type of search to perform: Semantic (vector similarity), Keyword (exact matches), or Hybrid (combination of both)",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Search Type
+                                </span>
+                                <span className="text-xs font-medium text-blue-600">
+                                  {searchType === 'vector' ? 'Semantic' : 
+                                   searchType === 'full_text' ? 'Keyword' : 'Hybrid'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "The search query or question you want to find information about",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Query
+                                </span>
+                                <span className="text-xs font-medium text-gray-800 max-w-[200px] truncate">{query}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "Maximum number of results to retrieve from the search",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Limit
+                                </span>
+                                <span className="text-xs font-medium text-gray-800">100</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "Whether to include the query execution plan in the response",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Explain
+                                </span>
+                                <span className="text-xs font-medium text-gray-800">true</span>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <span className="text-gray-500">Query:</span>
-                            <span className="ml-2 text-gray-800 font-medium">{query}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Limit:</span>
-                            <span className="ml-2 text-gray-800 font-medium">100</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Explain:</span>
-                            <span className="ml-2 text-gray-800 font-medium">true</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Results Per Page:</span>
-                            <span className="ml-2 text-gray-800 font-medium">{resultsPerPage}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Total Results:</span>
-                            <span className="ml-2 text-gray-800 font-medium">{results.length}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Current Page:</span>
-                            <span className="ml-2 text-gray-800 font-medium">{currentPage}</span>
-                          </div>
-                          <div>
-                            <span className="text-gray-500">Total Pages:</span>
-                            <span className="ml-2 text-gray-800 font-medium">{totalPages}</span>
+                          <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                            <h4 className="text-xs font-semibold text-gray-500 mb-2 pb-1 border-b border-gray-200">Results Configuration</h4>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "Number of results displayed per page in the UI",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Results Per Page
+                                </span>
+                                <span className="text-xs font-medium text-gray-800">{resultsPerPage}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "Total number of results found for the current search",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Total Results
+                                </span>
+                                <span className="text-xs font-medium text-gray-800">{results.length}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "Current page number being displayed",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Current Page
+                                </span>
+                                <span className="text-xs font-medium text-gray-800">{currentPage}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span 
+                                  className="text-xs text-gray-500 cursor-help"
+                                  onMouseEnter={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltip({
+                                      text: "Total number of pages available for the current search results",
+                                      x: rect.left,
+                                      y: rect.bottom + 10
+                                    });
+                                  }}
+                                  onMouseLeave={() => setTooltip(null)}
+                                >
+                                  Total Pages
+                                </span>
+                                <span className="text-xs font-medium text-gray-800">{totalPages}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
