@@ -12,6 +12,8 @@ export default function Home() {
   const [totalRows, setTotalRows] = useState(0);
   const [responseTime, setResponseTime] = useState<string | null>(null);
   const [backendTime, setBackendTime] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const resultsPerPage = 5;
 
   useEffect(() => {
     fetchTotalRows();
@@ -41,6 +43,7 @@ export default function Home() {
       if (!query.trim()) return;
   
       setLoading(true);
+      setCurrentPage(1); // Reset to first page on new search
       const startTime = performance.now();
   
       try {
@@ -61,9 +64,11 @@ export default function Home() {
         const endTime = performance.now();
         const frontendTime = ((endTime - startTime) / 1000).toFixed(2);
         
+        console.log('Search response:', data);
         setResponseTime(`Rendering took: ${frontendTime}s`);
         setBackendTime(`Search took: ${data.search_time.toFixed(2)}s`);
         setQueryPlan(data.query_plan);
+        console.log('Query plan:', data.query_plan);
   
         if (data.status === 'success') {
           setResults(Array.isArray(data.data) ? data.data : []);
@@ -83,6 +88,12 @@ export default function Home() {
         setLoading(false);
       }
   };
+
+  // Calculate pagination values
+  const totalPages = Math.ceil(results.length / resultsPerPage);
+  const startIndex = (currentPage - 1) * resultsPerPage;
+  const endIndex = startIndex + resultsPerPage;
+  const currentResults = results.slice(startIndex, endIndex);
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-6xl">
@@ -163,7 +174,7 @@ export default function Home() {
       )}
 
       <div className="space-y-4">
-        {results.map((result, index) => (
+        {currentResults.map((result, index) => (
           <div key={index} className="border rounded-lg p-4 shadow-sm">
             <h2 className="text-xl font-semibold mb-2">{result.title}</h2>
             <p className="text-gray-700 mb-2">{result.content}</p>
@@ -177,6 +188,34 @@ export default function Home() {
             </a>
           </div>
         ))}
+
+        {/* Pagination Controls */}
+        {results.length > 0 && (
+          <div className="flex justify-between items-center mt-6">
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length} results
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <div className="px-4 py-2 text-gray-600">
+                Page {currentPage} of {totalPages}
+              </div>
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
