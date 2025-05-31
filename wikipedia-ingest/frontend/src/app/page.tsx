@@ -6,7 +6,7 @@ import { API_ENDPOINTS } from '@/config/endpoints';
 import Image from 'next/image';
 
 export default function Home() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState('Who wrote Romeo and Juliet?');
   const [searchType, setSearchType] = useState('vector');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ export default function Home() {
   const [responseTime, setResponseTime] = useState<string | null>(null);
   const [backendTime, setBackendTime] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const resultsPerPage = 5;
+  const resultsPerPage = 3;
 
   useEffect(() => {
     fetchTotalRows();
@@ -98,36 +98,36 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       <nav className="bg-white border-b border-gray-200">
-        <div className="container mx-auto px-4 py-4 max-w-6xl">
+        <div className="container mx-auto px-4 py-3 max-w-3xl">
           <Image
             src="/logo.png"
             alt="Wikipedia Search Logo"
-            width={100}
-            height={100}
+            width={80}
+            height={80}
             priority
           />
         </div>
       </nav>
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="flex flex-col items-center text-center gap-6 mb-12">
-          <h1 className="text-4xl font-bold">Wikipedia Search</h1>
-          <div className="w-24 h-24">
+      <main className="container mx-auto px-4 py-6 max-w-3xl">
+        <div className="flex flex-col items-center text-center gap-4 mb-8">
+          <h1 className="text-3xl font-bold">Wikipedia Search</h1>
+          <div className="w-16 h-16">
             <Image
               src="/hero.png"
               alt="Globe illustration"
-              width={96}
-              height={96}
+              width={64}
+              height={64}
               className="w-full h-full object-contain"
               priority
             />
           </div>
-          <div className="text-2xl text-blue-600 font-medium">
+          <div className="text-xl text-blue-600 font-medium">
             Total Documents: {totalRows.toLocaleString()}
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 mb-8">
+        <div className="flex flex-col gap-3 mb-6">
           <input
             type="text"
             placeholder="Enter your fact to check"
@@ -177,21 +177,6 @@ export default function Home() {
           </div>
         </div>
 
-        {queryPlan && (
-          <div className="mb-8 border border-gray-200 rounded-lg">
-            <div className="p-4 bg-gray-50 border-b border-gray-200">
-              <h3 className="font-semibold text-gray-700">Query Plan</h3>
-            </div>
-            <pre className="p-6 bg-white font-mono text-sm leading-relaxed overflow-x-auto text-gray-800">
-              {queryPlan?.split('\n').map((line, i) => (
-                <div key={i} className="whitespace-pre">
-                  {line}
-                </div>
-              ))}
-            </pre>
-          </div>
-        )}
-
         {(responseTime || backendTime) && (
           <div className="fixed bottom-4 right-4 bg-black text-white px-4 py-2 rounded-lg transition-opacity">
             {backendTime && <div>{backendTime}</div>}
@@ -201,25 +186,51 @@ export default function Home() {
 
         {results.length > 0 && (
           <div className="space-y-4">
-            <div className="flex items-center">
-              <h2 className="text-2xl font-semibold text-gray-800">
+            <div className="flex items-center mb-3">
+              <h2 className="text-lg font-semibold text-gray-800">
                 Search Results <span className="text-gray-500 font-normal">(showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length})</span>
               </h2>
             </div>
-            {currentResults.map((result, index) => (
-              <div key={index} className="border rounded-lg p-4 shadow-sm">
-                <h2 className="text-xl font-semibold mb-2">{result.title}</h2>
-                <p className="text-gray-700 mb-2">{result.content}</p>
-                <a
-                  href={result.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
+            <div className="space-y-2">
+              {currentResults.map((result, index) => (
+                <div 
+                  key={index} 
+                  className="group border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-md transition-all duration-200 bg-white"
                 >
-                  Source
-                </a>
-              </div>
-            ))}
+                  <h2 className="text-base font-semibold mb-1.5 text-gray-800 group-hover:text-blue-600 transition-colors">
+                    {result.title}
+                  </h2>
+                  <p className="text-gray-600 text-sm leading-relaxed mb-2 overflow-hidden" style={{ 
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}>
+                    {result.content}
+                  </p>
+                  <a
+                    href={result.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    <svg 
+                      className="w-3.5 h-3.5 mr-1" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path 
+                        strokeLinecap="round" 
+                        strokeLinejoin="round" 
+                        strokeWidth={2} 
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" 
+                      />
+                    </svg>
+                    View on Wikipedia
+                  </a>
+                </div>
+              ))}
+            </div>
 
             {/* Pagination Controls */}
             <div className="flex justify-end items-center mt-6">
@@ -258,6 +269,21 @@ export default function Home() {
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {queryPlan && (
+          <div className="mt-8 border border-gray-200 rounded-lg">
+            <div className="p-4 bg-gray-50 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-700">Query Plan</h3>
+            </div>
+            <pre className="p-6 bg-white font-mono text-sm leading-relaxed overflow-x-auto text-gray-800">
+              {queryPlan?.split('\n').map((line, i) => (
+                <div key={i} className="whitespace-pre">
+                  {line}
+                </div>
+              ))}
+            </pre>
           </div>
         )}
       </main>
