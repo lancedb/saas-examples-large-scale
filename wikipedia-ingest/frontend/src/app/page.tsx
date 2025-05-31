@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { SearchResult } from '@/types';
 import { API_ENDPOINTS } from '@/config/endpoints';
+import Image from 'next/image';
 
 export default function Home() {
   const [query, setQuery] = useState('');
@@ -96,127 +97,151 @@ export default function Home() {
   const currentResults = results.slice(startIndex, endIndex);
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Fact Check Wiki</h1>
-        <div className="text-xl text-blue-600">
-          Total Documents: {totalRows.toLocaleString()}
-        </div>
-      </div>
-
-      <div className="flex gap-4 mb-8">
-        <input
-          type="text"
-          placeholder="Enter your fact to check"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 p-2 border rounded-lg"
-        />
-        <select
-          value={searchType}
-          onChange={(e) => setSearchType(e.target.value)}
-          className="p-2 border rounded-lg w-48"
-        >
-          <option value="vector">Vector Search</option>
-          <option value="full_text">Full Text Search</option>
-          <option value="hybrid">Hybrid Search</option>
-        </select>
-        <button
-          onClick={handleSearch}
-          disabled={loading}
-          className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400"
-        >
-          {loading ? 'Searching...' : 'Search'}
-        </button>
-      </div>
-
-      <div className="flex items-center gap-2 mb-4">
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={explainEnabled}
-            onChange={(e) => setExplainEnabled(e.target.checked)}
-            className="form-checkbox h-4 w-4 text-blue-600"
+    <div className="min-h-screen flex flex-col">
+      <nav className="bg-white border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4 max-w-6xl">
+          <Image
+            src="/logo.png"
+            alt="Wikipedia Search Logo"
+            width={100}
+            height={100}
+            priority
           />
-          Show Query Plan
-        </label>
-      </div>
-
-      {queryPlan && explainEnabled && (
-        <div className="mb-8 border border-gray-200 rounded-lg">
-          <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
-            <h3 className="font-semibold text-gray-700">Query Plan</h3>
-            <button
-              onClick={() => setShowQueryPlan(!showQueryPlan)}
-              className="text-blue-600 hover:text-blue-800 font-medium"
-            >
-              {showQueryPlan ? 'Hide' : 'Show'}
-            </button>
-          </div>
-          {showQueryPlan && (
-            <pre className="p-6 bg-white font-mono text-sm leading-relaxed overflow-x-auto text-gray-800">
-              {queryPlan?.split('\n').map((line, i) => (
-                <div key={i} className="whitespace-pre">
-                  {line}
-                </div>
-              ))}
-            </pre>
-          )}
         </div>
-      )}
+      </nav>
 
-      {(responseTime || backendTime) && (
-        <div className="fixed bottom-4 right-4 bg-black text-white px-4 py-2 rounded-lg transition-opacity">
-          {backendTime && <div>{backendTime}</div>}
-          {responseTime && <div>{responseTime}</div>}
-        </div>
-      )}
-
-      <div className="space-y-4">
-        {currentResults.map((result, index) => (
-          <div key={index} className="border rounded-lg p-4 shadow-sm">
-            <h2 className="text-xl font-semibold mb-2">{result.title}</h2>
-            <p className="text-gray-700 mb-2">{result.content}</p>
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline"
-            >
-              Source
-            </a>
+      <main className="container mx-auto px-4 py-8 max-w-6xl">
+        <div className="flex flex-col items-center text-center gap-6 mb-12">
+          <h1 className="text-4xl font-bold">Wikipedia Search</h1>
+          <div className="w-24 h-24">
+            <Image
+              src="/hero.png"
+              alt="Globe illustration"
+              width={96}
+              height={96}
+              className="w-full h-full object-contain"
+              priority
+            />
           </div>
-        ))}
+          <div className="text-2xl text-blue-600 font-medium">
+            Total Documents: {totalRows.toLocaleString()}
+          </div>
+        </div>
 
-        {/* Pagination Controls */}
-        {results.length > 0 && (
-          <div className="flex justify-between items-center mt-6">
-            <div className="text-sm text-gray-600">
-              Showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length} results
-            </div>
-            <div className="flex gap-2">
+        <div className="flex gap-4 mb-8">
+          <input
+            type="text"
+            placeholder="Enter your fact to check"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            className="flex-1 p-2 border rounded-lg"
+          />
+          <select
+            value={searchType}
+            onChange={(e) => setSearchType(e.target.value)}
+            className="p-2 border rounded-lg w-48"
+          >
+            <option value="vector">Vector Search</option>
+            <option value="full_text">Full Text Search</option>
+            <option value="hybrid">Hybrid Search</option>
+          </select>
+          <button
+            onClick={handleSearch}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400"
+          >
+            {loading ? 'Searching...' : 'Search'}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 mb-4">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={explainEnabled}
+              onChange={(e) => setExplainEnabled(e.target.checked)}
+              className="form-checkbox h-4 w-4 text-blue-600"
+            />
+            Show Query Plan
+          </label>
+        </div>
+
+        {queryPlan && explainEnabled && (
+          <div className="mb-8 border border-gray-200 rounded-lg">
+            <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
+              <h3 className="font-semibold text-gray-700">Query Plan</h3>
               <button
-                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                disabled={currentPage === 1}
-                className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                onClick={() => setShowQueryPlan(!showQueryPlan)}
+                className="text-blue-600 hover:text-blue-800 font-medium"
               >
-                Previous
-              </button>
-              <div className="px-4 py-2 text-gray-600">
-                Page {currentPage} of {totalPages}
-              </div>
-              <button
-                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                disabled={currentPage === totalPages}
-                className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-              >
-                Next
+                {showQueryPlan ? 'Hide' : 'Show'}
               </button>
             </div>
+            {showQueryPlan && (
+              <pre className="p-6 bg-white font-mono text-sm leading-relaxed overflow-x-auto text-gray-800">
+                {queryPlan?.split('\n').map((line, i) => (
+                  <div key={i} className="whitespace-pre">
+                    {line}
+                  </div>
+                ))}
+              </pre>
+            )}
           </div>
         )}
-      </div>
-    </main>
+
+        {(responseTime || backendTime) && (
+          <div className="fixed bottom-4 right-4 bg-black text-white px-4 py-2 rounded-lg transition-opacity">
+            {backendTime && <div>{backendTime}</div>}
+            {responseTime && <div>{responseTime}</div>}
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {currentResults.map((result, index) => (
+            <div key={index} className="border rounded-lg p-4 shadow-sm">
+              <h2 className="text-xl font-semibold mb-2">{result.title}</h2>
+              <p className="text-gray-700 mb-2">{result.content}</p>
+              <a
+                href={result.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                Source
+              </a>
+            </div>
+          ))}
+
+          {/* Pagination Controls */}
+          {results.length > 0 && (
+            <div className="flex justify-between items-center mt-6">
+              <div className="text-sm text-gray-600">
+                Showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length} results
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Previous
+                </button>
+                <div className="px-4 py-2 text-gray-600">
+                  Page {currentPage} of {totalPages}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
   );
 }
