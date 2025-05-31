@@ -38,7 +38,6 @@ export default function Home() {
 
   const [showQueryPlan, setShowQueryPlan] = useState(false);
   const [queryPlan, setQueryPlan] = useState<string | null>(null);
-  const [explainEnabled, setExplainEnabled] = useState(false);
 
   const handleSearch = async () => {
       if (!query.trim()) return;
@@ -57,7 +56,7 @@ export default function Home() {
             query,
             search_type: searchType,
             limit: 100,
-            explain: explainEnabled
+            explain: true
           }),
         });
   
@@ -128,65 +127,68 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex gap-4 mb-8">
+        <div className="flex flex-col gap-4 mb-8">
           <input
             type="text"
             placeholder="Enter your fact to check"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-            className="flex-1 p-2 border rounded-lg"
+            className="w-full p-2 border rounded-lg"
           />
-          <select
-            value={searchType}
-            onChange={(e) => setSearchType(e.target.value)}
-            className="p-2 border rounded-lg w-48"
-          >
-            <option value="vector">Vector Search</option>
-            <option value="full_text">Full Text Search</option>
-            <option value="hybrid">Hybrid Search</option>
-          </select>
-          <button
-            onClick={handleSearch}
-            disabled={loading}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400"
-          >
-            {loading ? 'Searching...' : 'Search'}
-          </button>
+          <div className="flex justify-center gap-2">
+            <button
+              onClick={() => setSearchType('vector')}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                searchType === 'vector'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Semantic
+            </button>
+            <button
+              onClick={() => setSearchType('full_text')}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                searchType === 'full_text'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Keyword
+            </button>
+            <button
+              onClick={() => setSearchType('hybrid')}
+              className={`px-4 py-2 rounded-lg border transition-colors ${
+                searchType === 'hybrid'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Hybrid
+            </button>
+            <button
+              onClick={handleSearch}
+              disabled={loading}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400"
+            >
+              {loading ? 'Searching...' : 'Search'}
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-4">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={explainEnabled}
-              onChange={(e) => setExplainEnabled(e.target.checked)}
-              className="form-checkbox h-4 w-4 text-blue-600"
-            />
-            Show Query Plan
-          </label>
-        </div>
-
-        {queryPlan && explainEnabled && (
+        {queryPlan && (
           <div className="mb-8 border border-gray-200 rounded-lg">
-            <div className="flex justify-between items-center p-4 bg-gray-50 border-b border-gray-200">
+            <div className="p-4 bg-gray-50 border-b border-gray-200">
               <h3 className="font-semibold text-gray-700">Query Plan</h3>
-              <button
-                onClick={() => setShowQueryPlan(!showQueryPlan)}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                {showQueryPlan ? 'Hide' : 'Show'}
-              </button>
             </div>
-            {showQueryPlan && (
-              <pre className="p-6 bg-white font-mono text-sm leading-relaxed overflow-x-auto text-gray-800">
-                {queryPlan?.split('\n').map((line, i) => (
-                  <div key={i} className="whitespace-pre">
-                    {line}
-                  </div>
-                ))}
-              </pre>
-            )}
+            <pre className="p-6 bg-white font-mono text-sm leading-relaxed overflow-x-auto text-gray-800">
+              {queryPlan?.split('\n').map((line, i) => (
+                <div key={i} className="whitespace-pre">
+                  {line}
+                </div>
+              ))}
+            </pre>
           </div>
         )}
 
