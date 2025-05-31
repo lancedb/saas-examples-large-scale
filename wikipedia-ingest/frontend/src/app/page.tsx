@@ -16,6 +16,8 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const resultsPerPage = 3;
 
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+
   useEffect(() => {
     fetchTotalRows();
   }, []);
@@ -139,6 +141,15 @@ export default function Home() {
           <div className="flex justify-center gap-2">
             <button
               onClick={() => setSearchType('vector')}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltip({
+                  text: "Semantic search understands the meaning of your query and finds conceptually similar content, even if the exact words don't match.",
+                  x: rect.left,
+                  y: rect.bottom + 10
+                });
+              }}
+              onMouseLeave={() => setTooltip(null)}
               className={`px-4 py-2 rounded-lg border transition-colors ${
                 searchType === 'vector'
                   ? 'bg-blue-600 text-white border-blue-600'
@@ -149,6 +160,15 @@ export default function Home() {
             </button>
             <button
               onClick={() => setSearchType('full_text')}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltip({
+                  text: "Keyword search finds exact matches of words in your query within the content.",
+                  x: rect.left,
+                  y: rect.bottom + 10
+                });
+              }}
+              onMouseLeave={() => setTooltip(null)}
               className={`px-4 py-2 rounded-lg border transition-colors ${
                 searchType === 'full_text'
                   ? 'bg-blue-600 text-white border-blue-600'
@@ -159,6 +179,15 @@ export default function Home() {
             </button>
             <button
               onClick={() => setSearchType('hybrid')}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setTooltip({
+                  text: "Hybrid search combines both semantic and keyword search to provide the most relevant results.",
+                  x: rect.left,
+                  y: rect.bottom + 10
+                });
+              }}
+              onMouseLeave={() => setTooltip(null)}
               className={`px-4 py-2 rounded-lg border transition-colors ${
                 searchType === 'hybrid'
                   ? 'bg-blue-600 text-white border-blue-600'
@@ -175,6 +204,19 @@ export default function Home() {
               {loading ? 'Searching...' : 'Search'}
             </button>
           </div>
+
+          {tooltip && (
+            <div 
+              className="fixed z-50 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-md shadow-sm max-w-xs transition-opacity duration-200"
+              style={{
+                left: tooltip.x,
+                top: tooltip.y,
+                transform: 'translateX(-50%)'
+              }}
+            >
+              {tooltip.text}
+            </div>
+          )}
         </div>
 
         {(responseTime || backendTime) && (
