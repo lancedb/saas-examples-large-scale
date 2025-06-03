@@ -712,18 +712,11 @@ export default function Home() {
         <div className="container mx-auto px-4 py-6 max-w-3xl">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
-              <Image
-                src="/logo.png"
-                alt="Wikipedia Search Logo"
-                width={40}
-                height={40}
-                className="opacity-75"
-              />
               <span className="text-sm text-gray-600">Powered by LanceDB</span>
-        </div>
+            </div>
             <div className="flex items-center gap-6">
               <a 
-                href="https://lancedb.com/docs" 
+                href="https://lancedb.com/documentation" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm text-gray-600 hover:text-blue-600 transition-colors duration-200"
