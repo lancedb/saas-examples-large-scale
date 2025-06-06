@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "LanceDB Wikipedia Search Demo",
-  description: "A demonstration of LanceDB's vector search capabilities using Wikipedia data. Features semantic search, full-text search, and hybrid search across millions of Wikipedia articles.",
+  description: "A demonstration of LanceDB&apos;s vector search capabilities using Wikipedia data. Features semantic search, full-text search, and hybrid search across millions of Wikipedia articles.",
 };
 
 export default function RootLayout({

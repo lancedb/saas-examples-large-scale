@@ -39,7 +39,6 @@ export default function Home() {
     }
   };
 
-  const [showQueryPlan, setShowQueryPlan] = useState(false);
   const [queryPlan, setQueryPlan] = useState<string | null>(null);
 
   const handleSearch = async () => {
@@ -258,7 +257,7 @@ export default function Home() {
             <div className="max-w-2xl mx-auto mt-[100px] mb-[300px] p-8 bg-blue-50 border border-blue-100 rounded-lg shadow-sm">
               <p className="text-gray-600 italic text-sm leading-relaxed space-y-3">
                 <span className="block">
-                  We've uploaded over 40 million Wikipedia documents to LanceDB, enabling you to experience lightning-fast 
+                  We&apos;ve uploaded over 40 million Wikipedia documents to LanceDB, enabling you to experience lightning-fast 
                   retrieval in a production environment.
                 </span>
                 <span className="block">
