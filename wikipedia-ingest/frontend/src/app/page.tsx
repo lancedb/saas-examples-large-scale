@@ -59,7 +59,7 @@ export default function Home() {
             query,
             search_type: searchType,
             limit: limit,
-            //explain: true
+            explain: true
           }),
         });
   
@@ -100,6 +100,16 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
+
+      {/* Tooltip Display */}
+      {tooltip && (
+        <div 
+          className="absolute z-50 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm dark:bg-gray-700"
+          style={{ top: tooltip.y, left: tooltip.x }}
+        >
+          {tooltip.text}
+        </div>
+      )}
       <nav className="bg-white border-b border-gray-200 shadow-sm">
         <div className="container mx-auto px-4 py-3 max-w-3xl flex items-center justify-between">
           <Image
@@ -239,7 +249,7 @@ export default function Home() {
                   value={limit}
                   onChange={(e) => {
                     const value = parseInt(e.target.value, 10);
-                    setLimit(isNaN(value) ? 5 : value);
+                    setLimit(value);
                   }}
                   className="w-20 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   min="1"

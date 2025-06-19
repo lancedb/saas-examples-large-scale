@@ -120,7 +120,6 @@ class EmbeddingProcessor:
 
     @modal.method()
     def process_batch(self, batch_args: dict):
-        import os
         import torch
         import time
         import numpy as np
@@ -231,42 +230,11 @@ class EmbeddingProcessor:
                         logging.info(f"call table.add() size {chunk_size} ({total_inserted}/{len(processed_records)}) in {chunk_time:.2f} seconds. throughput: {throughput:.2f}")
                     except Exception as e:
                         logging.warning(f"Insert failed, trying smaller batches: {str(e)}")
-                        # Try smaller sub-chunks
-                        for sub_chunk in chunk_records(insert_chunk, len(insert_chunk)//3):
-                            try:
-                                self.table.add(sub_chunk)
-                                sub_size = len(sub_chunk)
-                                total_inserted += sub_size
-                                logging.info(f"Ingested sub-chunk of size {sub_size}")
-                            except Exception as sub_e:
-                                logging.error(f"Failed to insert sub-chunk: {str(sub_e)}")
-
             except Exception as e:
                 logging.error(f"Error processing embedding chunk: {e}")
 
-        # Return metrics only if we have data
         avg_throughput = np.mean(throughput_metrics) if throughput_metrics else 0
         return (total_inserted, avg_throughput)
-
-@stub.function(
-    image=image,
-    volumes={CACHE_DIR: volume},
-    cpu=8,
-    max_containers=3,
-    memory=100000,
-    timeout=86400
-)
-def get_batch_indices(split_name: str):
-    from datasets import load_from_disk
-    import os
-    
-    # Debug volume mounting
-    logging.info(f"Checking directory contents: {os.listdir(CACHE_DIR)}")
-    
-    ds = load_from_disk(f"{CACHE_DIR}/marco-10m")[split_name]
-    total_size = len(ds)
-    return [(split_name, i, min(i + BATCH_SIZE, total_size)) 
-            for i in range(0, total_size, BATCH_SIZE)]
 
 @stub.local_entrypoint()
 def main(table_name: str = "macro-10m-docs-default"):
@@ -279,16 +247,12 @@ def main(table_name: str = "macro-10m-docs-default"):
 
     processor = EmbeddingProcessor(table_name=table_name)
     batch_args = []
-    # Hardcode
     split_sizes = {
         'in_domain': 3_930_000,      # 3.93M rows
         'novel_document': 3_920_000,  # 3.92M rows
         'novel_query': 981_000,       # 981k rows
         'zero_shot': 981_000          # 981k rows
     }
-    #for split in splits:
-    #    print(f"\nProcessing split: {split}")
-    #    batch_indices = get_batch_indices.remote(split)
     
     for split, total_size in split_sizes.items():
         print(f"\nProcessing split: {split} with {total_size:,} records")
@@ -299,27 +263,13 @@ def main(table_name: str = "macro-10m-docs-default"):
     try:
         t1 = time.time()
         results = processor.process_batch.map(batch_args, return_exceptions=True)
-
         split_total = 0
-        total_throughput = []
-        
         for i, result in enumerate(results):
             if isinstance(result, Exception):
                 print(f"Error in batch {i}: {result}")
-            elif isinstance(result, tuple) and len(result) == 2:
-                records, throughput = result
-                if records > 0:
-                    split_total += records
-                    total_throughput.append(throughput)
-                    print(f"Processed batch {i}, records: {records}, total: {split_total}, throughput: {throughput:.2f} records/sec")
 
-        total_processed += split_total
-        avg_throughput = np.mean(total_throughput) if total_throughput else 0
-        print(f"Records ingested: {split_total}, Average throughput: {avg_throughput:.2f} records/sec")
         t2 = time.time()
-        print(f"Total time: {(t2 - t1)/60.0} min")
+        print(f"Ingestion complete. Total time: {(t2 - t1)/60.0} min")
 
     except Exception as e:
         print(f"Error processing split : {e}")
-
-    print(f"All splits completed! Total records ingested: {total_processed}")
