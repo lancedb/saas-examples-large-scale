@@ -2,11 +2,7 @@ import modal
 import logging
 import io
 import requests
-from PIL import Image
-import numpy as np
-import aiohttp
 import time
-import asyncio
 import os
 
 logging.basicConfig(level=logging.INFO)
@@ -59,8 +55,6 @@ image = (modal.Image.debian_slim(python_version="3.11")
 SHARD_SIZE = 1_000_000 
 TOTAL_ROWS = 958_000_000
 NUM_SHARDS = TOTAL_ROWS // SHARD_SIZE + (1 if TOTAL_ROWS % SHARD_SIZE != 0 else 0)
-
-
 
 
 @stub.cls(
@@ -230,19 +224,11 @@ class EmbeddingProcessor:
                     embeddings_clip = embeddings_clip / embeddings_clip.norm(dim=-1, keepdim=True)
                     embeddings_clip = embeddings_clip.cpu().numpy()
 
-                    #embeddings_siglip = self.model_siglip.encode_image(image_batch)
-                    #embeddings_siglip = embeddings_siglip / embeddings_siglip.norm(dim=-1, keepdim=True)
-                    #embeddings_siglip = embeddings_siglip.cpu().numpy()
-
-                #embeddings = np.concatenate([embeddings_clip, embeddings_siglip], axis=1)
                 embeddings = embeddings_clip
-                # Convert to list of vectors
                 embeddings = [vector.tolist() for vector in embeddings]
                 # Add embeddings directly to embed_chunk records
                 for record, embedding in zip(embed_chunk, embeddings):
                     record["vector_clip"] = embedding
-                    #record["vector_clip"] = embedding[:512]
-                    #record["vector_siglip"] = embedding[512:]
 
                 t2= time.time()
                 logging.info(f"Embedding {len(embed_chunk)} records in {t2 - t1} seconds")
@@ -280,7 +266,6 @@ def main(table_name: str = "leonardo-default"):
     print(f"Using table: {table_name}")
 
     try:
-        # Generate shard arguments starting from shard 35
         batch_args = [
             {"shard_idx": idx}
             for idx in range(start_shard, NUM_SHARDS)
