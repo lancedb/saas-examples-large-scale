@@ -184,6 +184,7 @@ class WikipediaSearcher:
     @modal.web_endpoint(method="POST")
     async def search_endpoint(self, request: dict):
         try:
+            print(f" request ", request)
             query_text = request.get("query")
             limit = request.get("limit", 5)
             search_type = request.get("search_type", "vector")
@@ -199,11 +200,11 @@ class WikipediaSearcher:
             
             # Call the internal search methods directly (no .remote() needed)
             if search_type == "vector":
-                result = self.vector_search(query_text, limit, explain)
+                result = self.vector_search.remote(query_text, limit, explain)
             elif search_type == "full_text":
-                result = self.full_text_search(query_text, limit, explain)
+                result = self.full_text_search.remote(query_text, limit, explain)
             elif search_type == "hybrid":
-                result = self.hybrid_search(query_text, limit, explain)
+                result = self.hybrid_search.remote(query_text, limit, explain)
             else:
                 # This case should ideally be caught by the SEARCH_TYPES check above
                 return {
