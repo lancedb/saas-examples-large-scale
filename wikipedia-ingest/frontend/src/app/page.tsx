@@ -16,6 +16,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1);
   const resultsPerPage = 3;
   const [activeTab, setActiveTab] = useState('results');
+  const [limit, setLimit] = useState(5);
 
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
@@ -57,8 +58,8 @@ export default function Home() {
           body: JSON.stringify({
             query,
             search_type: searchType,
-            limit: 100,
-            explain: true
+            limit: limit,
+            //explain: true
           }),
         });
   
@@ -146,8 +147,8 @@ export default function Home() {
             </div>
             <div className="text-xl text-blue-600 font-medium">
               Total Documents: {totalRows.toLocaleString()}
-        </div>
-      </div>
+            </div>
+          </div>
 
           <div className="flex flex-col gap-3 mb-6">
             <div className="flex justify-center gap-2 mb-2">
@@ -221,36 +222,42 @@ export default function Home() {
                 </div>
               </div>
             </div>
-            <div className="flex gap-2">
-        <input
-          type="text"
-          placeholder="Explore Wikipedia's vast knowledge..."
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="flex-1 p-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+            <div className="flex items-center gap-2 relative">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="Search Wikipedia..."
+                className="flex-grow px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-        <button
-          onClick={handleSearch}
-          disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:bg-blue-400 hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:shadow-none"
-        >
-          {loading ? 'Searching...' : 'Search'}
-        </button>
-      </div>
-
-            {tooltip && (
-              <div 
-                className="fixed z-50 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-md shadow-lg max-w-xs transition-all duration-200"
-                style={{
-                  left: tooltip.x,
-                  top: tooltip.y,
-                  transform: 'translateX(-50%)'
-                }}
-              >
-                {tooltip.text}
+              <div className="flex items-center">
+                <label htmlFor="limit-input" className="mr-2 text-sm font-medium text-gray-700">Limit:</label>
+                <input 
+                  id="limit-input"
+                  type="number"
+                  value={limit}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value, 10);
+                    setLimit(isNaN(value) ? 5 : value);
+                  }}
+                  className="w-20 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  min="1"
+                />
               </div>
-            )}
+              <button
+                onClick={handleSearch}
+                disabled={loading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              >
+                {loading ? (
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : 'Search'}
+              </button>
+            </div>
           </div>
 
           {!results.length && (
@@ -304,6 +311,7 @@ export default function Home() {
                   >
                     Search Parameters
                   </button>
+                  {
                   <button
                     onClick={() => setActiveTab('queryPlan')}
                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-all duration-200 ease-in-out ${
@@ -314,6 +322,7 @@ export default function Home() {
                   >
                     Query Plan
                   </button>
+                  }
                 </nav>
               </div>
 

@@ -1,8 +1,7 @@
 import modal
 import time
 import os
-import base64
-from typing import Dict, List
+
 
 def get_secrets():
     LANCEDB_URI = os.environ.get("LANCEDB_URI")
@@ -29,7 +28,7 @@ image = modal.Image.debian_slim(python_version="3.11").pip_install(
     "pip install --pre --extra-index-url https://pypi.fury.io/lancedb/ lancedb"
 )
 
-app = modal.App("wikipedia-search", image=image, secrets=get_secrets())
+app = modal.App("wikipedia-search-test", image=image, secrets=get_secrets())
 
 SEARCH_TYPES = {
     "vector": {
@@ -49,11 +48,11 @@ SCALEDOWN_WINDOW = 60*15
 
 
 @app.cls(
-    cpu=8,
-    memory=32000,
+    cpu=4,
+    memory=8000,
     min_containers=1,
     scaledown_window=SCALEDOWN_WINDOW,
-    region="us-east-1"
+    #region="us-east-1"
 )
 class WikipediaSearcher:
     def __init__(self):
@@ -182,71 +181,63 @@ class WikipediaSearcher:
             print(f"Hybrid search error: {str(e)}")
             return {"error": f"Hybrid search failed: {str(e)}"}
 
-@app.function(region="us-east-1",
-            min_containers=1,
-            scaledown_window=SCALEDOWN_WINDOW,
-              )
-@modal.fastapi_endpoint(method="POST")
-async def search(request: dict):
-    try:
-        searcher = WikipediaSearcher()
-        query_text = request.get("query")
-        limit = request.get("limit", 5)
-        search_type = request.get("search_type", "vector")
-        explain = request.get("explain", False)  # New explain flag
+    @modal.web_endpoint(method="POST")
+    async def search_endpoint(self, request: dict):
+        try:
+            query_text = request.get("query")
+            limit = request.get("limit", 5)
+            search_type = request.get("search_type", "vector")
+            explain = request.get("explain", False)
 
-        if search_type not in SEARCH_TYPES:
+            if search_type not in SEARCH_TYPES:
+                return {
+                    "status": "error",
+                    "message": f"Invalid search type. Use one of: {list(SEARCH_TYPES.keys())}",
+                    "data": [],
+                    "search_time": 0
+                }
+            
+            # Call the internal search methods directly (no .remote() needed)
+            if search_type == "vector":
+                result = self.vector_search(query_text, limit, explain)
+            elif search_type == "full_text":
+                result = self.full_text_search(query_text, limit, explain)
+            elif search_type == "hybrid":
+                result = self.hybrid_search(query_text, limit, explain)
+            else:
+                # This case should ideally be caught by the SEARCH_TYPES check above
+                return {
+                    "status": "error", 
+                    "message": "Invalid search type",
+                    "data": [],
+                    "search_time": 0
+                }
+
+            if isinstance(result, dict) and "error" in result:
+                return {
+                    "status": "error",
+                    "message": result["error"],
+                    "data": [],
+                    "search_time": 0
+                }
+
+            return {
+                "status": "success", 
+                "data": result["results"],
+                "search_time": result["search_time"],
+                "query_plan": result.get("query_plan")
+            }
+        except Exception as e:
             return {
                 "status": "error", 
-                "message": f"Invalid search type. Use one of: {list(SEARCH_TYPES.keys())}",
-                "data": [],
-                "search_time": 0
-            }
-        
-        if search_type == "vector":
-            result = searcher.vector_search.remote(query_text, limit, explain)
-        elif search_type == "full_text":
-            result = searcher.full_text_search.remote(query_text, limit, explain)
-        elif search_type == "hybrid":
-            result = searcher.hybrid_search.remote(query_text, limit, explain)
-        else:
-            return {
-                "status": "error", 
-                "message": "Invalid search type",
-                "data": [],
-                "search_time": 0
+                "message": str(e),
+                "data": []
             }
 
-        if isinstance(result, dict) and "error" in result:
-            return {
-                "status": "error",
-                "message": result["error"],
-                "data": [],
-                "search_time": 0
-            }
-
-        return {
-            "status": "success", 
-            "data": result["results"],
-            "search_time": result["search_time"],
-            "query_plan": result.get("query_plan")
-        }
-    except Exception as e:
-        return {
-            "status": "error", 
-            "message": str(e),
-            "data": []  # Add empty array for error case
-        }
-
-@app.function(min_containers=1,
-              region="us-east-1",
-              scaledown_window=SCALEDOWN_WINDOW
-              )
-@modal.fastapi_endpoint(method="GET")
-def get_total_rows():
-    try:
-        searcher = WikipediaSearcher()
-        total_rows = searcher.table.count_rows()
-        return {"total_rows": total_rows}
-    except Exception as e:
-        return {"status": "error", "message": f"Failed to get total rows: {str(e)}"}
+    @modal.web_endpoint(method="GET")
+    def get_total_rows_endpoint(self):
+        try:
+            total_rows = self.table.count_rows()
+            return {"total_rows": total_rows}
+        except Exception as e:
+            return {"status": "error", "message": f"Failed to get total rows: {str(e)}"}
