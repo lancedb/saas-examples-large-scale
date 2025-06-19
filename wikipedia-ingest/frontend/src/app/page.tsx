@@ -131,6 +131,15 @@ export default function Home() {
         </div>
       </nav>
 
+      {tooltip && (
+        <div 
+          style={{ top: tooltip.y, left: tooltip.x }}
+          className="absolute z-50 px-3 py-2 text-sm font-medium text-white bg-gray-900 rounded-lg shadow-sm dark:bg-gray-700"
+        >
+          {tooltip.text}
+        </div>
+      )}
+
       <div className="flex-1">
         <div className="container mx-auto px-4 py-8 max-w-3xl">
           <div className="flex flex-col items-center text-center gap-4 mb-8">
