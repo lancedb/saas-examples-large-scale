@@ -35,7 +35,5 @@ modal deploy wikipedia-ingest.py
 * Deploy using `vercel`
 
 # Try Live demo app
-[Link](https://wikisearch-coral.vercel.app/)
-<img width="1262" alt="Screenshot 2025-05-08 at 9 13 28 PM" src="https://github.com/user-attachments/assets/10f20ffe-30f7-465b-9664-93bb670c094b" />
-
+[Link](https://wiki-search-2.vercel.app/)<img width="1437" alt="Screenshot 2025-06-21 at 8 34 21 PM" src="https://github.com/user-attachments/assets/a5a256b3-c175-489e-a05c-e30c9d00e4f7" />
 
