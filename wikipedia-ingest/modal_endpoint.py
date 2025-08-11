@@ -48,17 +48,15 @@ SCALEDOWN_WINDOW = 60*15
 
 
 @app.cls(
-    cpu=4,
-    memory=8000,
     min_containers=1,
     scaledown_window=SCALEDOWN_WINDOW,
     #region="us-east-1"
 )
+@modal.concurrent(max_inputs=5)
 class WikipediaSearcher:
     def __init__(self):
         from sentence_transformers import SentenceTransformer
         import torch
-        import lancedb
         from lancedb.rerankers import ColbertReranker
 
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -72,13 +70,17 @@ class WikipediaSearcher:
         #)
         
         # Connect to LanceDB
-        self.db = lancedb.connect(
+    
+    def get_lancedb_table(self):
+        import lancedb
+
+        db = lancedb.connect(
             uri=os.environ["LANCEDB_URI"],
             api_key=os.environ["LANCEDB_API_KEY"],
             region="us-east-1"
         )
         
-        self.table = self.db.open_table(os.environ["LANCEDB_TABLE_NAME"])
+        return db.open_table(os.environ["LANCEDB_TABLE_NAME"])
 
     def _process_text(self, text: str):
         import torch
@@ -90,9 +92,13 @@ class WikipediaSearcher:
 
     def vector_search(self, query_text: str, limit: int = 5, explain: bool = False):
         try:
+            start_time = time.time()
             features = self._process_text(query_text)
+            prepros_time = time.time() - start_time
+            print(f"prepros took: {prepros_time}")
             
-            search_query = self.table.search(
+            table = self.get_lancedb_table()
+            search_query = table.search(
                 features,
                 vector_column_name="vector"
             ).limit(limit).select([
@@ -121,7 +127,8 @@ class WikipediaSearcher:
 
     def full_text_search(self, query_text: str, limit: int = 5, explain: bool = False):
         try:
-            search_query = self.table.search(
+            table = self.get_lancedb_table()
+            search_query = table.search(
                 query_text,
                 query_type="fts",
             ).limit(limit).select([
@@ -150,14 +157,15 @@ class WikipediaSearcher:
 
     def hybrid_search(self, query_text: str, limit: int = 5, explain: bool = False):
         try:
+            table = self.get_lancedb_table()
             features = self._process_text(query_text)
             
-            search_query = self.table.search(
+            search_query = table.search(
                 query_type="hybrid",
                 vector_column_name="vector"
             ).vector(features).text(
                 query_text
-            ).limit(limit*4).select([
+            ).limit(limit*2).select([
                 "content", 
                 "title", 
                 "url", 
@@ -188,7 +196,7 @@ class WikipediaSearcher:
             query_text = request.get("query")
             limit = request.get("limit", 5)
             search_type = request.get("search_type", "vector")
-            explain = request.get("explain", False)
+            explain = False #request.get("explain", False)
 
             if search_type not in SEARCH_TYPES:
                 return {
@@ -237,7 +245,8 @@ class WikipediaSearcher:
     @modal.fastapi_endpoint(method="GET")
     def get_total_rows_endpoint(self):
         try:
-            total_rows = self.table.count_rows()
+            table = self.get_lancedb_table()
+            total_rows = table.count_rows()
             return {"total_rows": total_rows}
         except Exception as e:
             return {"status": "error", "message": f"Failed to get total rows: {str(e)}"}
@@ -252,6 +261,7 @@ def keep_warm():
     """
     import lancedb
     import time
+    import numpy as np
     
     db = lancedb.connect(
             uri=os.environ["LANCEDB_URI"],
@@ -260,13 +270,13 @@ def keep_warm():
         )
         
     table = db.open_table(os.environ["LANCEDB_TABLE_NAME"])
-
     print("Running keep-warm search...")
     try:
         for _ in range(10):
             t1 = time.time() 
-            _ = table.search([0]*384).limit(1).to_list()
-            _ = table.search("whaaat", query_type="fts").limit(1).to_list()
+            random_vector = np.random.rand(384).astype(np.float32)
+            _ = table.search(random_vector).limit(5).to_pandas()
+            _ = table.search("whaaat", query_type="fts").limit(5).to_pandas()
             t2 = time.time()
 
             print(f" Time taken vector+fts {t2-t1}")
