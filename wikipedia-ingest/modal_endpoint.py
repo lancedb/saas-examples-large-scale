@@ -196,7 +196,7 @@ class WikipediaSearcher:
             query_text = request.get("query")
             limit = request.get("limit", 5)
             search_type = request.get("search_type", "vector")
-            explain = False #request.get("explain", False)
+            explain = request.get("explain", False)
 
             if search_type not in SEARCH_TYPES:
                 return {
