@@ -88,7 +88,6 @@ class WikipediaSearcher:
             embedding = embedding / embedding.norm(dim=-1, keepdim=True)
             return embedding.cpu().numpy()
 
-    @modal.method()
     def vector_search(self, query_text: str, limit: int = 5, explain: bool = False):
         try:
             features = self._process_text(query_text)
@@ -109,7 +108,8 @@ class WikipediaSearcher:
             start_time = time.time()
             results = search_query.to_pandas()
             search_time = time.time() - start_time
-            
+            print(f"search took: {search_time}")
+
             return {
                 "results": results.to_dict(orient='records'), 
                 "search_time": search_time,
@@ -119,7 +119,6 @@ class WikipediaSearcher:
             print(f"Vector search error: {str(e)}")
             return {"error": f"Vector search failed: {str(e)}"}
 
-    @modal.method()
     def full_text_search(self, query_text: str, limit: int = 5, explain: bool = False):
         try:
             search_query = self.table.search(
@@ -138,6 +137,7 @@ class WikipediaSearcher:
             start_time = time.time()
             results = search_query.to_pandas()
             search_time = time.time() - start_time
+            print(f"search took: {search_time}")
             
             return {
                 "results": results.to_dict(orient='records'), 
@@ -148,7 +148,6 @@ class WikipediaSearcher:
             print(f"Full text search error: {str(e)}")
             return {"error": f"Full text search failed: {str(e)}"}
 
-    @modal.method()
     def hybrid_search(self, query_text: str, limit: int = 5, explain: bool = False):
         try:
             features = self._process_text(query_text)
@@ -171,7 +170,8 @@ class WikipediaSearcher:
             start_time = time.time()
             results = search_query.to_pandas()
             search_time = time.time() - start_time
-            
+            print(f"search took: {search_time}")
+
             return {
                 "results": results.to_dict(orient='records')[:limit], 
                 "search_time": search_time,
@@ -181,8 +181,8 @@ class WikipediaSearcher:
             print(f"Hybrid search error: {str(e)}")
             return {"error": f"Hybrid search failed: {str(e)}"}
 
-    @modal.web_endpoint(method="POST")
-    async def search_endpoint(self, request: dict):
+    @modal.fastapi_endpoint(method="POST")
+    def search_endpoint(self, request: dict):
         try:
             print(f" request ", request)
             query_text = request.get("query")
@@ -198,13 +198,12 @@ class WikipediaSearcher:
                     "search_time": 0
                 }
             
-            # Call the internal search methods directly (no .remote() needed)
             if search_type == "vector":
-                result = self.vector_search.remote(query_text, limit, explain)
+                result = self.vector_search(query_text, limit, explain)
             elif search_type == "full_text":
-                result = self.full_text_search.remote(query_text, limit, explain)
+                result = self.full_text_search(query_text, limit, explain)
             elif search_type == "hybrid":
-                result = self.hybrid_search.remote(query_text, limit, explain)
+                result = self.hybrid_search(query_text, limit, explain)
             else:
                 # This case should ideally be caught by the SEARCH_TYPES check above
                 return {
@@ -235,10 +234,43 @@ class WikipediaSearcher:
                 "data": []
             }
 
-    @modal.web_endpoint(method="GET")
+    @modal.fastapi_endpoint(method="GET")
     def get_total_rows_endpoint(self):
         try:
             total_rows = self.table.count_rows()
             return {"total_rows": total_rows}
         except Exception as e:
             return {"status": "error", "message": f"Failed to get total rows: {str(e)}"}
+        
+
+@app.function(
+    schedule=modal.Period(minutes=30),
+)
+def keep_warm():
+    """
+    Periodically runs a dummy search to keep the LanceDB table warm.
+    """
+    import lancedb
+    import time
+    
+    db = lancedb.connect(
+            uri=os.environ["LANCEDB_URI"],
+            api_key=os.environ["LANCEDB_API_KEY"],
+            region="us-east-1"
+        )
+        
+    table = db.open_table(os.environ["LANCEDB_TABLE_NAME"])
+
+    print("Running keep-warm search...")
+    try:
+        for _ in range(10):
+            t1 = time.time() 
+            _ = table.search([0]*384).limit(1).to_list()
+            _ = table.search("whaaat", query_type="fts").limit(1).to_list()
+            t2 = time.time()
+
+            print(f" Time taken vector+fts {t2-t1}")
+
+        print("✅ Keep-warm search successful.")
+    except Exception as e:
+        print(f"❌ Keep-warm search failed: {e}")
