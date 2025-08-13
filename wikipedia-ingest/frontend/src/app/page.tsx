@@ -112,14 +112,20 @@ export default function Home() {
       )}
       <nav className="bg-white border-b border-gray-200 shadow-sm">
         <div className="container mx-auto px-4 py-3 max-w-3xl flex items-center justify-between">
-          <Image
-            src="/logo.png"
-            alt="Wikipedia Search Logo"
-            width={100}
-            height={100}
-            priority
-            className="transition-transform hover:scale-105"
-          />
+          <a 
+            href="https://lancedb.com" 
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Image
+              src="/logo.png"
+              alt="Wikipedia Search Logo"
+              width={100}
+              height={100}
+              priority
+              className="transition-transform hover:scale-105"
+            />
+          </a>
           <div className="flex items-center gap-6">
             <a 
               href="https://lancedb.com/pricing" 
@@ -173,15 +179,6 @@ export default function Home() {
             <div className="flex justify-center gap-2 mb-2">
               <div 
                 className="relative w-[300px] h-10 bg-gray-100 rounded-full p-0.5 flex items-center"
-                onMouseEnter={(e) => {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  setTooltip({
-                    text: "Click to switch between Semantic, Keyword, or Hybrid search",
-                    x: rect.left,
-                    y: rect.bottom + 10
-                  });
-                }}
-                onMouseLeave={() => setTooltip(null)}
               >
                 <div 
                   className={`absolute h-9 rounded-full transition-all duration-300 ease-in-out
@@ -194,15 +191,6 @@ export default function Home() {
                     onClick={() => setSearchType('vector')}
                     className={`z-10 w-[98px] h-full flex items-center justify-center rounded-full transition-all duration-300 ease-in-out text-center
                       ${searchType === 'vector' ? 'text-white' : 'text-gray-600 hover:text-gray-800'}`}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        text: "Semantic search understands the meaning behind your query, finding conceptually similar content even if the exact words don't match",
-                        x: rect.left,
-                        y: rect.bottom + 10
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
                   >
                     <span className="w-full text-center">Semantic</span>
                   </button>
@@ -210,15 +198,6 @@ export default function Home() {
                     onClick={() => setSearchType('full_text')}
                     className={`z-10 w-[98px] h-full flex items-center justify-center rounded-full transition-all duration-300 ease-in-out text-center
                       ${searchType === 'full_text' ? 'text-white' : 'text-gray-600 hover:text-gray-800'}`}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        text: "Keyword search finds exact matches of your query terms, perfect for specific phrases or technical terms",
-                        x: rect.left,
-                        y: rect.bottom + 10
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
                   >
                     <span className="w-full text-center">Keyword</span>
                   </button>
@@ -226,15 +205,6 @@ export default function Home() {
                     onClick={() => setSearchType('hybrid')}
                     className={`z-10 w-[98px] h-full flex items-center justify-center rounded-full transition-all duration-300 ease-in-out text-center
                       ${searchType === 'hybrid' ? 'text-white' : 'text-gray-600 hover:text-gray-800'}`}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setTooltip({
-                        text: "Hybrid search combines both semantic and keyword approaches for the most comprehensive results",
-                        x: rect.left,
-                        y: rect.bottom + 10
-                      });
-                    }}
-                    onMouseLeave={() => setTooltip(null)}
                   >
                     <span className="w-full text-center">Hybrid</span>
                   </button>
@@ -363,11 +333,14 @@ export default function Home() {
                             Search Results <span className="text-gray-500 font-normal">(showing {startIndex + 1}-{Math.min(endIndex, results.length)} of {results.length})</span>
                           </h2>
                         </div>
-                        <div className="space-y-2">
+                                                <div className="space-y-2">
                           {currentResults.map((result, index) => (
-                            <div 
-                              key={index} 
-                              className="group border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-lg transition-all duration-200 bg-white"
+                            <a
+                              key={index}
+                              href={result.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block group border border-gray-200 rounded-lg p-3 hover:border-blue-200 hover:shadow-lg transition-all duration-200 bg-white cursor-pointer"
                             >
                               <h2 className="text-base font-semibold mb-1.5 text-gray-800 group-hover:text-blue-600 transition-colors">
                                 {result.title}
@@ -379,12 +352,7 @@ export default function Home() {
                               }}>
                                 {result.content}
                               </p>
-                              <a
-                                href={result.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 transition-colors"
-                              >
+                              <div className="inline-flex items-center text-sm text-blue-600 group-hover:text-blue-800 transition-colors">
                                 <svg 
                                   className="w-3.5 h-3.5 mr-1" 
                                   fill="none" 
@@ -399,10 +367,10 @@ export default function Home() {
                                   />
                                 </svg>
                                 View on Wikipedia
-                              </a>
-                            </div>
+                              </div>
+                            </a>
                           ))}
-      </div>
+                        </div>
 
                         {/* Pagination Controls */}
                         <div className="flex justify-end items-center mt-6">
@@ -633,97 +601,33 @@ export default function Home() {
                         : 'hidden opacity-0'
                     }`}
                   >
-                    {activeTab === 'queryPlan' && queryPlan && (
+                    {activeTab === 'queryPlan' && (
                       <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
                         <div className="p-4">
-                          <div className="mb-4">
-                            <h3 className="text-sm font-semibold text-gray-800 mb-2 text-center">Query Plan - API Response</h3>
-                            <pre className="font-mono text-xs leading-relaxed overflow-x-auto text-gray-800 bg-gray-50 p-2 rounded border border-gray-200 shadow-sm">
-              {queryPlan?.split('\n').map((line, i) => (
-                <div key={i} className="whitespace-pre">
-                  {line}
-                </div>
-              ))}
-            </pre>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-semibold text-gray-800 mb-1 text-center">Query Plan Flow</h3>
-                            <p className="text-xs text-gray-500 mb-2 text-center">(in order of execution, from bottom to top)</p>
-                            <div className="space-y-0 max-w-md mx-auto">
-                              <div className="bg-gray-50 rounded-t p-1.5 border border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">1. QuantizedIvfExec</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Uses a quantized Inverted File (IVF) index for efficient vector similarity search.
-                                </p>
-                              </div>
-                              <div className="flex justify-center">
-                                <div className="relative w-0.5 h-3 bg-gray-300">
-                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[3px] border-t-gray-300"></div>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 p-1.5 border-x border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">2. ANNSubIndex</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Performs Approximate Nearest Neighbor search using the vector index, retrieving the 100 most similar vectors.
-                                </p>
-                              </div>
-                              <div className="flex justify-center">
-                                <div className="relative w-0.5 h-3 bg-gray-300">
-                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[3px] border-t-gray-300"></div>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 p-1.5 border-x border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">3. SortExec</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Sorts the results by similarity score (_distance) in ascending order, keeping only the top 100 results.
-                                </p>
-                              </div>
-                              <div className="flex justify-center">
-                                <div className="relative w-0.5 h-3 bg-gray-300">
-                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[3px] border-t-gray-300"></div>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 p-1.5 border-x border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">4. GlobalLimitExec</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Limits the total number of results to 100, starting from the first result (skip=0).
-                                </p>
-                              </div>
-                              <div className="flex justify-center">
-                                <div className="relative w-0.5 h-3 bg-gray-300">
-                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[3px] border-t-gray-300"></div>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 p-1.5 border-x border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">5. CoalesceBatchesExec</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Combines multiple data batches into a single batch of size 1024 for efficient processing.
-                                </p>
-                              </div>
-                              <div className="flex justify-center">
-                                <div className="relative w-0.5 h-3 bg-gray-300">
-                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[3px] border-t-gray-300"></div>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 p-1.5 border-x border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">6. RemoteTake</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Retrieves the specified columns from the remote data source.
-                                </p>
-                              </div>
-                              <div className="flex justify-center">
-                                <div className="relative w-0.5 h-3 bg-gray-300">
-                                  <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[3px] border-t-gray-300"></div>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 rounded-b p-1.5 border border-gray-200">
-                                <h4 className="font-medium text-blue-600 text-xs mb-0.5 text-center">7. ProjectionExec</h4>
-                                <p className="text-gray-600 text-xs leading-tight text-center">
-                                  Selects and renames specific columns from the results: content, title, url, identifier, chunk_index, and _distance (similarity score).
-                                </p>
-                              </div>
+                          {queryPlan && (
+                            <div className="mb-4">
+                              <h3 className="text-sm font-semibold text-gray-800 mb-2 text-center">Query Plan - API Response</h3>
+                              <pre className="font-mono text-xs leading-relaxed overflow-x-auto text-gray-800 bg-gray-50 p-2 rounded border border-gray-200 shadow-sm">
+                                {queryPlan?.split('\n').map((line, i) => (
+                                  <div key={i} className="whitespace-pre">
+                                    {line}
+                                  </div>
+                                ))}
+                              </pre>
                             </div>
+                          )}
+                          
+                          <div className="text-center">
+                            <a 
+                              href="https://lancedb.com/docs/search/optimize-queries/" 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                            >
+                              Learn more about this query plan
+                            </a>
                           </div>
+
                         </div>
                       </div>
                     )}
