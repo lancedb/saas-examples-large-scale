@@ -493,7 +493,7 @@ export default function Home() {
                                   >
                                     Limit
                                   </span>
-                                  <span className="text-xs font-medium text-gray-800">100</span>
+                                  <span className="text-xs font-medium text-gray-800">{limit}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                   <span 
