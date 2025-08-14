@@ -109,7 +109,7 @@ class WikipediaSearcher:
                 "chunk_index"
             ])
             
-            query_plan = search_query.explain_plan(verbose=True) if explain else None
+            query_plan = search_query.explain_plan() if explain else None
             
             start_time = time.time()
             results = search_query.to_pandas()
@@ -139,7 +139,7 @@ class WikipediaSearcher:
                 "chunk_index"
             ])
             
-            query_plan = search_query.explain_plan(verbose=True) if explain else None
+            query_plan = search_query.explain_plan() if explain else None
             
             start_time = time.time()
             results = search_query.to_pandas()
