@@ -155,7 +155,7 @@ class WikipediaSearcher:
             print(f"Full text search error: {str(e)}")
             return {"error": f"Full text search failed: {str(e)}"}
 
-    def hybrid_search(self, query_text: str, limit: int = 5, explain: bool = False):
+    def hybrid_search(self, query_text: str, limit: int = 5):
         try:
             table = self.get_lancedb_table()
             features = self._process_text(query_text)
@@ -173,7 +173,7 @@ class WikipediaSearcher:
                 "chunk_index"
             ])
             
-            query_plan = None
+
             
             start_time = time.time()
             results = search_query.to_pandas()
@@ -182,8 +182,7 @@ class WikipediaSearcher:
 
             return {
                 "results": results.to_dict(orient='records')[:limit], 
-                "search_time": search_time,
-                "query_plan": query_plan
+                "search_time": search_time
             }
         except Exception as e:
             print(f"Hybrid search error: {str(e)}")

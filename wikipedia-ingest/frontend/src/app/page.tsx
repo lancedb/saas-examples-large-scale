@@ -300,18 +300,18 @@ export default function Home() {
                   >
                     Search Parameters
                   </button>
-                  {
-                  <button
-                    onClick={() => setActiveTab('queryPlan')}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 transition-all duration-200 ease-in-out ${
-                      activeTab === 'queryPlan'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    Query Plan
-                  </button>
-                  }
+                  {searchType !== 'hybrid' && (
+                    <button
+                      onClick={() => setActiveTab('queryPlan')}
+                      className={`px-4 py-2 text-sm font-medium border-b-2 transition-all duration-200 ease-in-out ${
+                        activeTab === 'queryPlan'
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Query Plan
+                    </button>
+                  )}
                 </nav>
               </div>
 
@@ -593,45 +593,46 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Query Plan Tab */}
-                  <div 
-                    className={`transition-all duration-300 ease-in-out ${
-                      activeTab === 'queryPlan' 
-                        ? 'block opacity-100' 
-                        : 'hidden opacity-0'
-                    }`}
-                  >
-                    {activeTab === 'queryPlan' && (
-                      <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-                        <div className="p-4">
-                          {queryPlan && (
-                            <div className="mb-4">
-                              <h3 className="text-sm font-semibold text-gray-800 mb-2 text-center">Query Plan - API Response</h3>
-                              <pre className="font-mono text-xs leading-relaxed overflow-x-auto text-gray-800 bg-gray-50 p-2 rounded border border-gray-200 shadow-sm">
-                                {queryPlan?.split('\n').map((line, i) => (
-                                  <div key={i} className="whitespace-pre">
-                                    {line}
-                                  </div>
-                                ))}
-                              </pre>
+                  {/* Query Plan Tab - Hidden for Hybrid Search */}
+                  {searchType !== 'hybrid' && (
+                    <div 
+                      className={`transition-all duration-300 ease-in-out ${
+                        activeTab === 'queryPlan' 
+                          ? 'block opacity-100' 
+                          : 'hidden opacity-0'
+                      }`}
+                    >
+                      {activeTab === 'queryPlan' && (
+                        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+                          <div className="p-4">
+                            {queryPlan && (
+                              <div className="mb-4">
+                                <h3 className="text-sm font-semibold text-gray-800 mb-2 text-center">Query Plan - API Response</h3>
+                                <pre className="font-mono text-xs leading-relaxed overflow-x-auto text-gray-800 bg-gray-50 p-2 rounded border border-gray-200 shadow-sm">
+                                  {queryPlan?.split('\n').map((line, i) => (
+                                    <div key={i} className="whitespace-pre">
+                                      {line}
+                                    </div>
+                                  ))}
+                                </pre>
+                              </div>
+                            )}
+                            
+                            <div className="text-center">
+                              <a 
+                                href="https://lancedb.com/docs/search/optimize-queries/" 
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
+                              >
+                                Learn more about this query plan
+                              </a>
                             </div>
-                          )}
-                          
-                          <div className="text-center">
-                            <a 
-                              href="https://lancedb.com/docs/search/optimize-queries/" 
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:text-blue-800 transition-colors"
-                            >
-                              Learn more about this query plan
-                            </a>
                           </div>
-
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
